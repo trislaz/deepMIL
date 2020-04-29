@@ -42,5 +42,6 @@ class AttentionMILFeatures(Module):
         w = torch.transpose(w, -1, -2)
         slide = torch.matmul(w, f) # Slide representation, weighted sum of the patches
         out = self.classifier(slide)
+        out = out.squeeze(-1).squeeze(-1)
         return out
 

@@ -5,6 +5,7 @@ from torch.nn import (BCELoss, functional)
 from torch.optim import Adam
 from tensorboardX import SummaryWriter
 import torch
+import numpy as np
 from sklearn import metrics
 ## Use Cross_entropy loss nn.CrossEntropyLoss
 # TODO change the get_* functions with _get_*
@@ -26,17 +27,17 @@ class DeepMIL(Model):
 
     def __init__(self, args):
         super(DeepMIL, self).__init__(args)
-        self.network = self._get_network()
-        self.criterion = BCELoss()
-        optimizer = Adam(self.network.parameters())
-        self.optimizers = [optimizer]
-        self.writer = SummaryWriter(self.get_folder_writer())
-        self.get_schedulers
         self.results_val = {'scores': [],
                             'y_true': []}
         self.mean_train_loss = 0
         self.mean_val_loss = 0
         self.target_correspondance = [] # Useful when writing the results
+        self.network = self._get_network()
+        self.criterion = BCELoss()
+        optimizer = Adam(self.network.parameters())
+        self.optimizers = [optimizer]
+        self.writer = SummaryWriter(self.get_folder_writer())
+        self.get_schedulers()
 
     def _get_network(self):
         net = self.models[self.args.model_name](self.args)        
@@ -50,24 +51,24 @@ class DeepMIL(Model):
         return out
 
     def flush_val_metrics(self):
-        val_scores = self.results_val['scores']
-        val_y = self.results_val['y_true']
+        val_scores = np.array(self.results_val['scores'])
+        val_y = np.array(self.results_val['y_true'])
         val_metrics = self._compute_metrics(scores=val_scores, y_true=val_y)
         val_metrics['mean_loss'] = {'mean_train_loss': self.mean_train_loss,
                                     'mean_val_loss': self.mean_val_loss}
 
         # Ugly. Changes the name of the key according to the target correspondance.
-        val_metrics[self.target_correspondance[0]] = val_metrics['0']
-        val_metrics[self.target_correspondance[1]] = val_metrics['1']
-        del val_metrics['0']
-        del val_metrics['1']
+        val_metrics[self.target_correspondance[0]] = val_metrics['0.0']
+        val_metrics[self.target_correspondance[1]] = val_metrics['1.0']
+        del val_metrics['0.0']
+        del val_metrics['1.0']
         # Re Initialize val_results for next validation
         self.results_val['scores'] = []
         self.results_val['y_true'] = []
         return val_metrics
 
     def _compute_metrics(self, scores, y_true):
-        metrics_dict = metrics.classification_report(y_true=y_true, y_pred=scores.round())
+        metrics_dict = metrics.classification_report(y_true=y_true, y_pred=scores.round(), output_dict=True)
         metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores)
         return metrics_dict
 
@@ -87,8 +88,8 @@ class DeepMIL(Model):
         scores = self._forward_no_grad(x)
         y = y.to('cpu')
         loss = self.criterion(scores, y)       
-        self.results_val['scores'] += scores.numpy()
-        self.results_val['y_true'] += y.cpu().numpy()
+        self.results_val['scores'] += list(scores.numpy())
+        self.results_val['y_true'] += list(y.cpu().numpy())
         return loss.detach().cpu().item()
 
     def forward(self, x):
@@ -98,7 +99,7 @@ class DeepMIL(Model):
     def optimize_parameters(self, input_batch, target_batch):
         input_batch = input_batch.to(self.args.device)
         target_batch = target_batch.to(self.args.device)
-        output_batch = self.forward(input_batch).squeeze()
+        output_batch = self.forward(input_batch)
         self.set_zero_grad()
         loss = self.criterion(output_batch, target_batch)
         loss.backward()
