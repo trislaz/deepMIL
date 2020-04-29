@@ -27,6 +27,7 @@ class AttentionMILFeatures(Module):
             Softmax(dim=-2) # Softmax sur toutes les tuiles. somme à 1.
         )
         self.classifier = Sequential(
+            Linear(128, 64),
             Linear(64, 1),
             Sigmoid()
         )
@@ -39,7 +40,7 @@ class AttentionMILFeatures(Module):
         f = self.feature_extractor(x)
         w = self.weight_extractor(f)
         w = torch.transpose(w, -1, -2)
-        slide = torch.mm(w, f) # Slide representation, weighted sum of the patches
+        slide = torch.matmul(w, f) # Slide representation, weighted sum of the patches
         out = self.classifier(slide)
         return out
 

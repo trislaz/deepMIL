@@ -12,6 +12,8 @@ from sklearn import metrics
 # TODO In theory, the writer should be written in the base_class as it is not dependant on the model used.
 # TODO we should be able to pass him the dict object containing what has to be written.
 # TODO maybe use a list containing all the dict at all epochs: writes only the last object.
+# TODO 
+# TODO As in dataloader.py, make a list of the arguments that have to be in the Namespace.
 ##
 
 class DeepMIL(Model):
@@ -96,13 +98,13 @@ class DeepMIL(Model):
     def optimize_parameters(self, input_batch, target_batch):
         input_batch = input_batch.to(self.args.device)
         target_batch = target_batch.to(self.args.device)
-        output_batch = self.forward(input_batch)
+        output_batch = self.forward(input_batch).squeeze()
         self.set_zero_grad()
         loss = self.criterion(output_batch, target_batch)
         loss.backward()
         return loss.detach().cpu().item()
 
-    def _make_state(self):
+    def make_state(self):
         dictio = {'state_dict': self.network.state_dict(),
                 'state_dict_optimizer': self.optimizers[0].state_dict, 
                 'state_scheduler': self.schedulers[0].state_dict(), 

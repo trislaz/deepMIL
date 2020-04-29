@@ -1,4 +1,5 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import torch
 
 def get_arguments():
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
@@ -31,6 +32,13 @@ def get_arguments():
                         type=int,
                         default=100,
                         help="number of epochs for training")
+    parser.add_argument('--table_data', 
+                        type=str, 
+                        help='path to the csv containing the data info.')
+    parser.add_argument('--model_name', 
+                        type=str,
+                        default='attentionmil', 
+                        help='name of the model used. Avail : attentionmil')
 
     args = parser.parse_args()
     if args.patience == 0:

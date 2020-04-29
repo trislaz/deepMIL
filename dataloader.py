@@ -48,7 +48,7 @@ class EmbededWSI(Dataset):
             name, _ = os.path.splitext(os.path.basename(f))
             if self._is_in_db(f):
                 files_filtered.append(f)
-                target_dict[f] = table[table['ID'] == name]['target'].values[0]
+                target_dict[f] = np.float32(table[table['ID'] == name]['target'].values[0])
         return files_filtered, target_dict
 
     def transform_target(self):
@@ -73,8 +73,9 @@ class EmbededWSI(Dataset):
         """
         table = self.table_data
         name, _ = os.path.splitext(os.path.basename(f))
-        is_in_train = (table[table['ID'] == name]['test'] != self.args.test_fold).item() # "keep if i'm not test"
-        is_in_db = is_in_train # & is_not_forbidden & is_in_table
+        is_in_table = name in table['ID'].values
+        is_in_train = (table[table['ID'] == name]['test'] != self.args.test_fold).item() if is_in_table else False # "keep if i'm not test"
+        is_in_db = is_in_train & is_in_table# & is_not_forbidden 
         return is_in_db
 
     def __len__(self):
@@ -93,7 +94,7 @@ def make_loaders(args):
     splitter = StratifiedShuffleSplit(n_splits=1, test_size=0.2)
 
     # Shuffles dataset
-    train_indices, val_indices = splitter.split(X = labels, y=labels)
+    train_indices, val_indices = [x for x in splitter.split(X=labels, y=labels)][0]
     val_sampler = SubsetRandomSampler(val_indices)
     train_sampler = SubsetRandomSampler(train_indices)
 

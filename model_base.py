@@ -15,7 +15,7 @@ class Model(ABC):
         self.losses = {'global':[]}
         self.metric = 0
         self.criterion = lambda : 1
-        self.counter = {'epochs': 0, 'batches': 0}
+        self.counter = {'epoch': 0, 'batch': 0}
         self.network = torch.nn.Module()
         self.early_stopping = EarlyStopping(args=args)
         self.device = args.device

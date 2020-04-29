@@ -1,5 +1,6 @@
 minimal_example/
 .vscode/
 __pycache__/
+outputs/
 
 

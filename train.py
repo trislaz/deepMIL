@@ -17,9 +17,9 @@ def train(model, dataloader):
     epobatch = 1/len(dataloader) # How many epochs per batch ?
     for input_batch, target_batch in dataloader:
         model.counter["batch"] += 1
-        model.counter['epochs'] += epobatch
+        model.counter['epoch'] += epobatch
         loss = model.optimize_parameters(input_batch, target_batch)
-        model.writer.add_scalar("Training_batch_loss", loss, model.counter['epochs'])
+        model.writer.add_scalar("Training_batch_loss", loss, model.counter['epoch'])
         mean_loss.append(loss)
     model.mean_train_loss = np.mean(loss)
 
@@ -32,7 +32,7 @@ def val(model, dataloader):
         mean_loss.append(loss)
     model.mean_val_loss = np.mean(mean_loss)
     to_write = model.flush_val_metrics()
-    writes_metrics(model.writer, to_write, model.counter['epochs']) # Writes classif metrics.
+    writes_metrics(model.writer, to_write, model.counter['epoch']) # Writes classif metrics.
     state = model.make_state()
     model.update_learning_rate(model.mean_val_loss)
     model.early_stopping(model.mean_val_loss, state)
@@ -43,10 +43,14 @@ def main():
     dataloader_train, dataloader_val = make_loaders(args)
     model.target_correspondance = dataloader_train.dataset.target_correspondance # Will be useful when writing the results.
 
-    while model.counter['epochs'] < args.epochs:
+    while model.counter['epoch'] < args.epochs:
         print("Begin training")
         train(model=model, dataloader=dataloader_train)
         val(model=model, dataloader=dataloader_val)
         if model.early_stopping.early_stop:
             break
     model.writer.close()
+
+if __name__ == '__main__':
+    main()
+
