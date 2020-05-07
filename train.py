@@ -4,6 +4,10 @@ from models import DeepMIL
 import sklearn.metrics as metrics
 import numpy as np
 
+# For the sklearn warnings
+import warnings
+warnings.filterwarnings('always')
+
 def writes_metrics(writer, to_write, epoch):
     for key in to_write:
         if type(to_write[key]) == dict:
@@ -21,7 +25,8 @@ def train(model, dataloader):
         loss = model.optimize_parameters(input_batch, target_batch)
         model.writer.add_scalar("Training_batch_loss", loss, model.counter['epoch'])
         mean_loss.append(loss)
-    model.mean_train_loss = np.mean(loss)
+    model.mean_train_loss = np.mean(mean_loss)
+    print('train_loss: {}'.format(np.mean(mean_loss)))
 
 def val(model, dataloader):
     model.network.eval()
@@ -34,6 +39,7 @@ def val(model, dataloader):
     to_write = model.flush_val_metrics()
     writes_metrics(model.writer, to_write, model.counter['epoch']) # Writes classif metrics.
     state = model.make_state()
+    print('mean val loss {}'.format(np.mean(mean_loss)))
     model.update_learning_rate(model.mean_val_loss)
     model.early_stopping(model.mean_val_loss, state)
 
@@ -44,7 +50,7 @@ def main():
     model.target_correspondance = dataloader_train.dataset.target_correspondance # Will be useful when writing the results.
 
     while model.counter['epoch'] < args.epochs:
-        print("Begin training")
+        print("Epochs {}".format(round(model.counter['epoch'])))
         train(model=model, dataloader=dataloader_train)
         val(model=model, dataloader=dataloader_val)
         if model.early_stopping.early_stop:
@@ -52,5 +58,6 @@ def main():
     model.writer.close()
 
 if __name__ == '__main__':
+    warnings.filterwarnings('always')
     main()
 

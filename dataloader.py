@@ -32,12 +32,14 @@ class EmbededWSI(Dataset):
                 * device, torch.device
                 * test_fold, int, number of the fold used as test.
                 * feature_depth, int, number of dimension of the embedded space to keep. (0<x<2048)
+                * nb_tiles, int, if 0 : take all the tiles, will need custom collate_fn, else randomly picks $nb_tiles in each WSI.
 
         """
         super(EmbededWSI, self).__init__()
         self.args = args
         self.table_data = pd.read_csv(args.table_data)
         self.files, self.target_dict = self._make_db()
+        self.constant_size = (args.nb_tiles != 0)
         
     def _make_db(self):
         table = self.transform_target()
@@ -84,9 +86,35 @@ class EmbededWSI(Dataset):
     def __getitem__(self, idx):
         path = self.files[idx]
         mat = np.load(path)[:,:self.args.feature_depth]
+        mat = self._select_tiles(mat)
         mat = torch.from_numpy(mat).float() #ToTensor
         target = self.target_dict[path]
         return mat, target
+
+    def _select_tiles(self, mat):
+        """Select the tiles from a WSI.
+        If we want a constant size, then $nb_tiles are randomly draw from the available tiles.
+        If not, return the whole matrix.
+
+        Parameters
+        ----------
+        mat : np.array
+            matrix of the encoded WSI.
+
+        Returns
+        -------
+        np.array
+            selected tiles 
+        """
+        if self.constant_size:
+            indexes = np.random.randint(mat.shape[0], size=self.args.nb_tiles)
+            mat = mat[indexes, :]
+        return mat
+
+def collate_variable_size(batch):
+    data = [item[0].unsqueeze(0) for item in batch]
+    target = [torch.FloatTensor([item[1]]) for item in batch]
+    return [data, target]
 
 def make_loaders(args):
     dataset = EmbededWSI(args=args)
@@ -98,8 +126,14 @@ def make_loaders(args):
     val_sampler = SubsetRandomSampler(val_indices)
     train_sampler = SubsetRandomSampler(train_indices)
 
-    dataloader_train = DataLoader(dataset=dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=24)
-    dataloader_val = DataLoader(dataset=dataset, batch_size=args.batch_size, sampler=val_sampler, num_workers=24)
+    # Collating regime
+    if args.constant_size:
+        collate = None
+    else:
+        collate = collate_variable_size
+
+    dataloader_train = DataLoader(dataset=dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=24, collate_fn=collate)
+    dataloader_val = DataLoader(dataset=dataset, batch_size=1, sampler=val_sampler, num_workers=24)
     return dataloader_train, dataloader_val
 
 
@@ -107,14 +141,17 @@ if __name__ == '__main__':
     ## To test it
     from argparse import Namespace
     args = Namespace()
-    args.table_data = "/Users/trislaz/Documents/cbio/projets/deepMIL_tris/minimal_example/labels_luminaux_test.csv"
-    args.path_tiles = "/Users/trislaz/Documents/cbio/projets/deepMIL_tris/minimal_example/numpy_WSI"
-    args.target_name = "HRD"
+    args.table_data = "/Users/trislaz/Documents/cbio/projets/deepMIL_tris/labels_tcga_tnbc_strat.csv"
+    args.path_tiles = "/Users/trislaz/Documents/cbio/data/tcga/TCGA_TNBC/encoded/imagenet_R_2/2/mat_pca"
+    args.target_name = "LST_status"
+    args.batch_size = 2
     args.test_fold = 1
+    args.nb_tiles = 10
     args.feature_depth = 2048
     args.device = torch.device('cpu')
 
     db = EmbededWSI(args)
-
-    db[0]
-
+    train, val = make_loaders(args)
+    for x, y in train:
+        print(x)
+        print(y)

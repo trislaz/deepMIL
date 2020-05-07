@@ -106,8 +106,9 @@ class EarlyStopping:
             self.counter += 1
             self.is_best = False
             if self.counter < self.patience:
-                print('-- There has been {}/{} epochs without improvement on the validation set. --\n'.format(
-                      self.counter, self.patience))
+                if False:
+                    print('-- There has been {}/{} epochs without improvement on the validation set. --\n'.format(
+                          self.counter, self.patience))
             else:
                 self.early_stop = True
 

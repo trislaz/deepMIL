@@ -1,12 +1,16 @@
 # Local import
 from model_base import Model
-from networks import AttentionMILFeatures
+from networks import AttentionMILFeatures, model1S
 from torch.nn import (BCELoss, functional)
 from torch.optim import Adam
 from tensorboardX import SummaryWriter
 import torch
 import numpy as np
 from sklearn import metrics
+# For the sklearn warnings
+import warnings
+warnings.filterwarnings('always')
+
 ## Use Cross_entropy loss nn.CrossEntropyLoss
 # TODO change the get_* functions with _get_*
 # TODO better organizing in the class the different metrics writing (losses, mean losses, classif metrics...)
@@ -23,7 +27,7 @@ class DeepMIL(Model):
     """
     models = {'attentionmil': AttentionMILFeatures, 
                 'conan': 'not yet implemented', 
-                '1s': 'not yet implemented'}
+                '1s': model1S }
 
     def __init__(self, args):
         super(DeepMIL, self).__init__(args)
@@ -34,7 +38,7 @@ class DeepMIL(Model):
         self.target_correspondance = [] # Useful when writing the results
         self.network = self._get_network()
         self.criterion = BCELoss()
-        optimizer = Adam(self.network.parameters())
+        optimizer = Adam(self.network.parameters(), lr=0.003)
         self.optimizers = [optimizer]
         self.writer = SummaryWriter(self.get_folder_writer())
         self.get_schedulers()
@@ -97,12 +101,24 @@ class DeepMIL(Model):
         return out
 
     def optimize_parameters(self, input_batch, target_batch):
-        input_batch = input_batch.to(self.args.device)
-        target_batch = target_batch.to(self.args.device)
-        output_batch = self.forward(input_batch)
         self.set_zero_grad()
-        loss = self.criterion(output_batch, target_batch)
-        loss.backward()
+        if self.args.constant_size: # We can process a batch as a whole big tensor
+            input_batch = input_batch.to(self.args.device)
+            target_batch = target_batch.to(self.args.device)
+            output = self.forward(input_batch)
+            loss = self.criterion(output, target_batch)
+
+        else: # We have to process a batch as a list of tensors (of different sizes)
+            loss = 0
+            for o, im in enumerate(input_batch):
+                im = im.to(self.args.device)
+                target = target_batch[o].to(self.args.device)
+                output = self.forward(im)
+                loss += self.criterion(output, target)
+            loss = loss/len(input_batch)
+            loss.backward()
+
+        self.optimizers[0].step()
         return loss.detach().cpu().item()
 
     def make_state(self):
