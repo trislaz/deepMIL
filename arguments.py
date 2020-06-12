@@ -57,6 +57,6 @@ def get_arguments():
     else:
         args.constant_size = True
 
-    args.dropout = 0
+    args.dropout = 0.3
     return args
 

@@ -75,9 +75,10 @@ class EmbededWSI(Dataset):
         """
         table = self.table_data
         name, _ = os.path.splitext(os.path.basename(f))
-        is_in_table = name in table['ID'].values
-        is_in_train = (table[table['ID'] == name]['test'] != self.args.test_fold).item() if is_in_table else False # "keep if i'm not test"
-        is_in_db = is_in_train & is_in_table# & is_not_forbidden 
+        is_in_db = name in table['ID'].values
+        if 'test' in table.columns:
+            is_in_train = (table[table['ID'] == name]['test'] != self.args.test_fold).item() if is_in_db else False # "keep if i'm not test"
+            is_in_db = is_in_db & is_in_train
         return is_in_db
 
     def __len__(self):

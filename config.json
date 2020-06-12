@@ -1,0 +1,13 @@
+{
+    //
+    // Parameters for the deepmil process
+    // 
+    "table_data":"/Users/trislaz/Documents/cbio/data/tcga/",
+    "resolutions":[1, 2],
+    "project_name":"tcga_auto_mask",
+    "target_name":"LST_status",
+    "epochs": 50,
+    "tiling_name": "imagenet",
+    "model_name": "conan",
+    "nb_tiles": 0 // If 0, we use all the tiles at once
+}

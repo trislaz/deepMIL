@@ -1,6 +1,6 @@
 # Local import
 from model_base import Model
-from networks import AttentionMILFeatures, model1S
+from networks import AttentionMILFeatures, model1S, Conan
 from torch.nn import (BCELoss, functional)
 from torch.optim import Adam
 from tensorboardX import SummaryWriter
@@ -26,7 +26,7 @@ class DeepMIL(Model):
     Class implementing a Deep MIL framwork. different Models a define upstairs
     """
     models = {'attentionmil': AttentionMILFeatures, 
-                'conan': 'not yet implemented', 
+                'conan': Conan, 
                 '1s': model1S }
 
     def __init__(self, args):
@@ -61,19 +61,17 @@ class DeepMIL(Model):
         val_metrics['mean_loss'] = {'mean_train_loss': self.mean_train_loss,
                                     'mean_val_loss': self.mean_val_loss}
 
-        # Ugly. Changes the name of the key according to the target correspondance.
-        val_metrics[self.target_correspondance[0]] = val_metrics['0.0']
-        val_metrics[self.target_correspondance[1]] = val_metrics['1.0']
-        del val_metrics['0.0']
-        del val_metrics['1.0']
         # Re Initialize val_results for next validation
         self.results_val['scores'] = []
         self.results_val['y_true'] = []
         return val_metrics
 
     def _compute_metrics(self, scores, y_true):
-        metrics_dict = metrics.classification_report(y_true=y_true, y_pred=scores.round(), output_dict=True)
+        report = metrics.classification_report(y_true=y_true, y_pred=scores.round(), output_dict=True)
+        metrics_dict = {'accuracy': report['accuracy'], "precision": report['weighted avg']['precision'], 
+            "recall": report['weighted avg']['recall'], "f1-score": report['weighted avg']['f1-score']}
         metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores)
+        print(metrics_dict['accuracy'])
         return metrics_dict
 
     def predict(self, x):
@@ -107,6 +105,7 @@ class DeepMIL(Model):
             target_batch = target_batch.to(self.args.device)
             output = self.forward(input_batch)
             loss = self.criterion(output, target_batch)
+            loss.backward()
 
         else: # We have to process a batch as a list of tensors (of different sizes)
             loss = 0

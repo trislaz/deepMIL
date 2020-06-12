@@ -7,3 +7,29 @@ outputs/
 labels_tcga_tnbc_strat.csv
 
 
+model.pt.tar
+model_best.pt.tar
+runs/Jun11_11-30-26_trite.local/events.out.tfevents.1591867826.trite.local
+runs/Jun11_11-30-26_trite.local/mean_loss/mean_train_loss/events.out.tfevents.1591867828.trite.local
+runs/Jun11_11-30-26_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591867828.trite.local
+runs/Jun11_11-33-33_trite.local/events.out.tfevents.1591868013.trite.local
+runs/Jun11_11-33-33_trite.local/mean_loss/mean_train_loss/events.out.tfevents.1591868014.trite.local
+runs/Jun11_11-33-33_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591868014.trite.local
+runs/Jun11_11-34-08_trite.local/events.out.tfevents.1591868048.trite.local
+runs/Jun11_11-34-08_trite.local/mean_loss/mean_train_loss/events.out.tfevents.1591868050.trite.local
+runs/Jun11_11-34-08_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591868050.trite.local
+runs/Jun11_11-35-08_trite.local/events.out.tfevents.1591868108.trite.local
+runs/Jun11_11-35-08_trite.local/mean_loss/mean_train_loss/events.out.tfevents.1591868110.trite.local
+runs/Jun11_11-35-08_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591868110.trite.local
+runs/Jun11_11-35-39_trite.local/events.out.tfevents.1591868139.trite.local
+runs/Jun11_11-36-03_trite.local/events.out.tfevents.1591868163.trite.local
+runs/Jun11_11-36-11_trite.local/events.out.tfevents.1591868171.trite.local
+runs/Jun11_11-36-31_trite.local/events.out.tfevents.1591868191.trite.local
+runs/Jun11_11-36-31_trite.local/mean_loss/mean_train_loss/events.out.tfevents.1591868193.trite.local
+runs/Jun11_11-36-31_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591868193.trite.local
+runs/Jun11_11-36-49_trite.local/events.out.tfevents.1591868209.trite.local
+runs/Jun11_11-36-49_trite.local/mean_loss/mean_train_loss/events.out.tfevents.1591868211.trite.local
+runs/Jun11_11-36-49_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591868211.trite.local
+runs/Jun11_11-40-50_trite.local/events.out.tfevents.1591868450.trite.local
+runs/Jun11_11-40-50_trite.local/mean_loss/mean_train_loss/events.out.tfevents.1591868453.trite.local
+runs/Jun11_11-40-50_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591868453.trite.local
