@@ -1,23 +1,24 @@
-# Local import
-from model_base import Model
-from networks import AttentionMILFeatures, model1S, Conan
-from torch.nn import (BCELoss, functional)
+"""
+implementing models. DeepMIL implements a models that classify a whole slide image
+"""
+from torch.nn import BCELoss
 from torch.optim import Adam
-from tensorboardX import SummaryWriter
 import torch
 import numpy as np
 from sklearn import metrics
+
+from networks import AttentionMILFeatures, model1S, Conan
+from model_base import Model
 # For the sklearn warnings
-import warnings
-warnings.filterwarnings('always')
 
 ## Use Cross_entropy loss nn.CrossEntropyLoss
 # TODO change the get_* functions with _get_*
-# TODO better organizing in the class the different metrics writing (losses, mean losses, classif metrics...)
-# TODO In theory, the writer should be written in the base_class as it is not dependant on the model used.
-# TODO we should be able to pass him the dict object containing what has to be written.
-# TODO maybe use a list containing all the dict at all epochs: writes only the last object.
-# TODO 
+# TODO better organizing in the class the different metrics writing (losses, mean losses
+# # classif metrics...)
+# In theory, the writer should be written in the base_class as it is not dependant on the model used
+# we should be able to pass him the dict object containing what has to be written.
+# maybe use a list containing all the dict at all epochs: writes only the last object.
+# 
 # TODO As in dataloader.py, make a list of the arguments that have to be in the Namespace.
 ##
 
@@ -40,7 +41,6 @@ class DeepMIL(Model):
         self.criterion = BCELoss()
         optimizer = Adam(self.network.parameters(), lr=0.003)
         self.optimizers = [optimizer]
-        self.writer = SummaryWriter(self.get_folder_writer())
         self.get_schedulers()
 
     def _get_network(self):

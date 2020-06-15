@@ -31,10 +31,6 @@ class AttentionMILFeatures(Module):
         )
         self.classifier = Sequential(
             Linear(64, 1),
-#            ReLU(),
-#            Dropout(p=args.dropout),
-#            Linear(64, 1),
-#            Dropout(p=args.dropout),
             Sigmoid()
         )
     def forward(self, x):
@@ -49,9 +45,7 @@ class AttentionMILFeatures(Module):
         slide = torch.matmul(w, f) # Slide representation, weighted sum of the patches
         out = self.classifier(slide)
         out = out.squeeze(-1).squeeze(-1)
-#        out = torch.nn.functional.sigmoid(out)
         return out
-
 
 class model1S(Module):
     """
@@ -126,8 +120,6 @@ class Dense_bn(Module):
     def forward(self, x):
         out = self.layer(x)
         return out
-
-
 
 class Conan(Module):
     """

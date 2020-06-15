@@ -44,11 +44,11 @@ def val(model, dataloader):
     model.early_stopping(model.mean_val_loss, state)
 
 def main():
-    args = get_arguments()
-    model = DeepMIL(args=args)
+    args = get_arguments(train=True)
+    model = DeepMIL(args=args) 
+    model.get_summary_writer()
     dataloader_train, dataloader_val = make_loaders(args)
-    model.target_correspondance = dataloader_train.dataset.target_correspondance # Will be useful when writing the results.
-
+    model.target_correspondance = dataloader_train.dataset.target_correspondance # Will be useful when writing the results. TODO change that.
     while model.counter['epoch'] < args.epochs:
         print("Epochs {}".format(round(model.counter['epoch'])))
         train(model=model, dataloader=dataloader_train)

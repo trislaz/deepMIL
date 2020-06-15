@@ -2,6 +2,7 @@
 import torch 
 import torchvision
 from abc import ABC, abstractmethod
+from tensorboardX import SummaryWriter
 import shutil
 import os
 
@@ -20,6 +21,7 @@ class Model(ABC):
         self.early_stopping = EarlyStopping(args=args)
         self.device = args.device
         self.dataset = None
+        self.writer = None
 
     @abstractmethod
     def optimize_parameters(self, input_batch, target_batch):
@@ -45,12 +47,12 @@ class Model(ABC):
     def evaluate(self, x, y):
         pass
 
-    def get_folder_writer(self):
+    def get_summary_writer(self):
         if 'EVENTS_TF_FOLDER' in os.environ:
             directory = os.environ['EVENTS_TF_FOLDER']
         else:
             directory = None
-        return directory
+        self.writer = SummaryWriter(directory)
 
     def get_schedulers(self):
         """Can be called after having define the optimizers (list-like)
