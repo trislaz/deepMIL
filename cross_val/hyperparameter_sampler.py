@@ -1,6 +1,6 @@
 """
 Samples hyperparameters to feed the pipeline.
-Outputs : 
+Outputs :
     * yaml config file, giving the whole parameters set.
     * an empty results file (python .pickle that will contain results for each run)
 """
@@ -31,10 +31,10 @@ class Sampler:
 
     @staticmethod
     def lr_sampler(high=1, low=3):
-        """Log samples the learning rate, in a 
+        """Log samples the learning rate, in a
         window between 10^-high and 10^-4
         """
-        s = np.random.uniform(2, 4) # s for sampler
+        s = np.random.uniform(high, low) # s for sampler
         s = 10 ** (-s)
         return s
 
@@ -45,7 +45,6 @@ class Sampler:
         s = np.random.randint(1, 16)
         return s
 
-    # TODO in order to be able to try 1s and conan with all the tiles --> add a version w/o batchnorm
     def nb_tiles_sampler(self, p=0.2, res=1):
         low, high = self.res_to_tiles[res]
         take_all_tiles = np.random.binomial(1, self.p)
@@ -69,7 +68,6 @@ def main():
     parser.add_argument("--res", type=int, help="resolution of the wsi")
     args = parser.parse_args()
     sampler = Sampler(args)
-    runs = []
     for n in range(args.nb_para):
         params = sampler.sample()
         with open('config_{}.yaml'.format(n), 'w') as config:

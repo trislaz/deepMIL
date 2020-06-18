@@ -33,3 +33,4 @@ runs/Jun11_11-36-49_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591
 runs/Jun11_11-40-50_trite.local/events.out.tfevents.1591868450.trite.local
 runs/Jun11_11-40-50_trite.local/mean_loss/mean_train_loss/events.out.tfevents.1591868453.trite.local
 runs/Jun11_11-40-50_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591868453.trite.local
+cross_val/essai.nf

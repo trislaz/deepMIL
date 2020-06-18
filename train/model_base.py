@@ -20,6 +20,9 @@ class Model(ABC):
         self.network = torch.nn.Module()
         self.early_stopping = EarlyStopping(args=args)
         self.device = args.device
+        self.ref_metric = args.ref_metric
+        self.best_metrics = None
+        self.best_ref_metric = None
         self.dataset = None
         self.writer = None
 
@@ -84,7 +87,7 @@ class Model(ABC):
 class EarlyStopping:
     """Early stopping AND saver !
     """
-    def __init__(self,args):
+    def __init__(self, args):
         self.patience = args.patience
         self.counter = 0
         self.loss_min = None
@@ -127,4 +130,4 @@ class EarlyStopping:
     def save_checkpoint(self, state):
         torch.save(state, self.filename)
         if self.is_best:
-            shutil.copyfile(self.filename, self.filename.replace('.pt.tar','_best.pt.tar'))
+            shutil.copyfile(self.filename, self.filename.replace('.pt.tar', '_best.pt.tar'))

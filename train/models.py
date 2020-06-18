@@ -54,10 +54,20 @@ class DeepMIL(Model):
         out = out.detach().cpu()
         return out
 
+    def _keep_best_metrics(self, metrics):
+        factor = {'accuracy': -1, 'loss': 1}
+        factor = factor[self.ref_metric]
+        if self.best_ref_metric is None:
+            self.best_ref_metric = metrics[self.ref_metric]
+        if self.best_ref_metric * factor > metrics[self.ref_metric] * factor:
+            self.best_ref_metric = metrics[self.ref_metric]
+            self.best_metrics = metrics
+        
     def flush_val_metrics(self):
         val_scores = np.array(self.results_val['scores'])
         val_y = np.array(self.results_val['y_true'])
         val_metrics = self._compute_metrics(scores=val_scores, y_true=val_y)
+        self._keep_best_metrics(val_metrics)
         val_metrics['mean_loss'] = {'mean_train_loss': self.mean_train_loss,
                                     'mean_val_loss': self.mean_val_loss}
 
@@ -125,7 +135,8 @@ class DeepMIL(Model):
                 'state_dict_optimizer': self.optimizers[0].state_dict, 
                 'state_scheduler': self.schedulers[0].state_dict(), 
                 'inner_counter': self.counter,
-                'args': self.args}
+                'args': self.args,
+                'best_metrics': self.best_metrics}
         return dictio
 
 

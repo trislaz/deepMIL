@@ -1,0 +1,12 @@
+batch_size: 16
+config: null
+epochs: 100
+res: 1
+feature_depth: 2048
+model_name: 1s
+nb_tiles: 500
+path_tiles: /Users/trislaz/Documents/cbio/data/tcga/TCGA_TNBC/encoded/imagenet_R_2/2/mat_pca
+patience: 0
+table_data: /Users/trislaz/Documents/cbio/projets/deepMIL_tris/labels_tcga_tnbc_strat.csv
+target_name: LST_status
+test_fold: 1
