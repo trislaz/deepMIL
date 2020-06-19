@@ -33,6 +33,7 @@ class EmbededWSI(Dataset):
                 * test_fold, int, number of the fold used as test.
                 * feature_depth, int, number of dimension of the embedded space to keep. (0<x<2048)
                 * nb_tiles, int, if 0 : take all the tiles, will need custom collate_fn, else randomly picks $nb_tiles in each WSI.
+                * train, bool, if True : extract the data s.t fold != test_fold, if False s.t. fold == test_fold
 
         """
         super(EmbededWSI, self).__init__()
@@ -67,7 +68,7 @@ class EmbededWSI(Dataset):
 
     def _is_in_db(self, f):
         """Do we keep the file in the dataset ?
-        To test : 
+        To test :
             * Is the file in the table_data ?
             * Is the file in the test set ?
             * Is'nt the file an outsider .. ?
@@ -78,7 +79,8 @@ class EmbededWSI(Dataset):
         is_in_db = name in table['ID'].values
         if 'test' in table.columns:
             is_in_train = (table[table['ID'] == name]['test'] != self.args.test_fold).item() if is_in_db else False # "keep if i'm not test"
-            is_in_db = is_in_db & is_in_train
+            is_in_test = (table[table['ID'] == name]['test'] == self.args.test_fold).item() if is_in_db else False
+            is_in_db = is_in_train if args.train else is_in_test
         return is_in_db
 
     def __len__(self):
@@ -119,23 +121,28 @@ def collate_variable_size(batch):
 
 def make_loaders(args):
     dataset = EmbededWSI(args=args)
-    labels = [x[1] for x in dataset]
-    splitter = StratifiedShuffleSplit(n_splits=1, test_size=0.2)
+    if args.train: # In a context of cross validation.
+        labels = [x[1] for x in dataset]
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=0.2)
 
-    # Shuffles dataset
-    train_indices, val_indices = [x for x in splitter.split(X=labels, y=labels)][0]
-    val_sampler = SubsetRandomSampler(val_indices)
-    train_sampler = SubsetRandomSampler(train_indices)
+        # Shuffles dataset
+        train_indices, val_indices = [x for x in splitter.split(X=labels, y=labels)][0]
+        val_sampler = SubsetRandomSampler(val_indices)
+        train_sampler = SubsetRandomSampler(train_indices)
 
-    # Collating regime
-    if args.constant_size:
-        collate = None
-    else:
-        collate = collate_variable_size
+        # Collating regime
+        if args.constant_size:
+            collate = None
+        else:
+            collate = collate_variable_size
 
-    dataloader_train = DataLoader(dataset=dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=24, collate_fn=collate)
-    dataloader_val = DataLoader(dataset=dataset, batch_size=1, sampler=val_sampler, num_workers=24)
-    return dataloader_train, dataloader_val
+        dataloader_train = DataLoader(dataset=dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=24, collate_fn=collate)
+        dataloader_val = DataLoader(dataset=dataset, batch_size=1, sampler=val_sampler, num_workers=24)
+        dataloaders = (dataloader_train, dataloader_val)
+    else: # Testing on the whole dataset
+        dataloader = DataLoader(dataset=dataset, batch_size=1, num_workers=24)
+        dataloaders = (dataloader)
+    return dataloaders
 
 
 if __name__ == '__main__':
