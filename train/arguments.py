@@ -11,8 +11,7 @@ def get_arguments(train=True):
     # Data
     parser.add_argument("--path_tiles",
                         type=str, 
-                        help="path to the tiled WSI",
-                        required=True)
+                        help="path to the tiled WSI")
     parser.add_argument("--target_name",
                         type=str,
                         help='name of the target variable.')

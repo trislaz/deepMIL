@@ -14,7 +14,7 @@ def extract_config(config_path):
     return int
     """
     config, _ = os.path.splitext(os.path.basename(config_path))
-    config = int(config.split('_')[0])
+    config = int(config.split('_')[1])
     return config
 
 def extract_references(args):
@@ -69,12 +69,12 @@ def mean_dataframe(df):
         for t in tests:
             dft = dfc[dfc['test'] == t]
             dft_m = dft.mean(axis=0)
-            dft_m.drop('repeat')
+            dft_m = dft_m.drop('repeat').to_frame().transpose()
             rows_r.append(dft_m)
             rows_t.append(dft_m)
         df_mean_t = pd.concat(rows_t)
-        df_mean_t.drop('test')
-        rows_rt.append(df_mean_t.mean(axis=0))
+        df_mean_t = df_mean_t.drop('test', axis=1)
+        rows_rt.append(df_mean_t.mean(axis=0).to_frame().transpose())
     df_mean_r = pd.concat(rows_r)
     df_mean_rt = pd.concat(rows_rt)
     return df_mean_r, df_mean_rt
@@ -98,7 +98,7 @@ def select_best_config(df, ref_metric):
     """
     max_index = df.idxmax(axis=0)
     best_config = df.iloc[max_index[ref_metric]]['config']
-    return best_config
+    return int(best_config)
 
 def select_best_repeat(df, best_config, ref_metric, path):
     """Selects, for a given config (best_config), the models
@@ -127,9 +127,9 @@ def select_best_repeat(df, best_config, ref_metric, path):
     df_best_config = df[df['config'] == best_config]
     selection = []
     for t in tests:
-        df_t = df_best_config[df_best_config['test'] == t]
+        df_t = df_best_config[df_best_config['test'] == int(t)]
         best_rep = df_t.iloc[df_t.idxmax(axis=0)[ref_metric]]['repeat'].item()
-        selection.append((best_config, t, best_rep))
+        selection.append((int(best_config), int(t), int(best_rep)))
     return selection
 
 def copy_best_to_root(path, param):
@@ -137,7 +137,7 @@ def copy_best_to_root(path, param):
     and the config file in the root path of the experiment.
     """
     c, t, r = param
-    model_path = os.path.join(path, "config_{}/test_{}/repeat_{}/model_best.pt.tar".format(c, t, r))
+    model_path = os.path.join(path, "config_{}/test_{}/{}/model_best.pt.tar".format(c, t, r))
     config_path = os.path.join(path, "configs/config_{}.yaml".format(c))
     shutil.copy(model_path, os.path.join(path, 'model_best_test_{}.pt.tar'.format(t)))
     shutil.copy(config_path, os.path.join(path, 'best_config_{}.yaml'.format(c)))
@@ -146,13 +146,13 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--path", type=str, help="folder where are stored the models.")
     args = parser.parse_args()
-    models = glob(os.path.join(args.path, '/**/*_best.pt.tar'), recursive=True)
+    models = glob(os.path.join(args.path, '**/*_best.pt.tar'), recursive=True)
     rows = [] 
     for m in models:
         state = torch.load(m)
         args_m = state['args']
         references = extract_references(args_m)
-        metrics = state['metrics']
+        metrics = state['best_metrics']
         metrics = convert_flatten(metrics)
         references.update(metrics)
         rows.append(references)
@@ -162,7 +162,7 @@ def main():
     df_mean_r, df_mean_rt = mean_dataframe(df)
     best_config = select_best_config(df_mean_rt, ref_metric)
     models_params = select_best_repeat(df=df, best_config=best_config, ref_metric=ref_metric, path=args.path)
-    for param in model_params:
+    for param in models_params:
         copy_best_to_root(args.path, param)
     df.to_csv('all_results.csv', index=False)
     df_mean_r.to_csv('mean_over_repeats.csv', index=False)

@@ -3,7 +3,7 @@ Implements the networks that can be used in train.
 use of pytorch.
 """
 import functools
-from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax,
+from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity,
                       Sigmoid, Conv1d, ReLU, Dropout, BatchNorm1d, InstanceNorm1d)
 import torch
 from torchvision import transforms
@@ -55,7 +55,8 @@ def get_norm_layer(use_bn=True):
     if use_bn: #Use batch
         norm_layer = functools.partial(BatchNorm1d, affine=True, track_running_stats=True)
     else:
-        norm_layer = functools.partial(InstanceNorm1d, affine=False, track_running_stats=False)
+        #norm_layer = functools.partial(InstanceNorm1d, affine=False, track_running_stats=False)
+        norm_layer = functools.partial(Identity)
     return norm_layer
 
 class model1S(Module):
@@ -113,7 +114,7 @@ class Conv1d_bn(Module):
             Conv1d(in_channels=in_channels, 
                    out_channels=out_channels,
                    kernel_size=1),
-            self.get_norm_layer(out_channels),
+            self.norm_layer(out_channels),
             ReLU(),
             Dropout(p=dropout)
         )

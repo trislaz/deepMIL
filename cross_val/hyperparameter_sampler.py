@@ -21,7 +21,7 @@ class Sampler:
         self.res = args.res
         self.params = vars(args)
         self.table_data = args.table_data
-        self.path_wsi = args.path_wsi
+        self.path_tiles = args.path_tiles
         self.model_name = args.model_name
         self.p = 0.2 # in nb_tiles
         self.parameters_name = self.parameters_per_model[args.model_name] + self.global_parameters
@@ -62,10 +62,11 @@ class Sampler:
 def main():
     parser = ArgumentParser()
     parser.add_argument("--model_name", type=str)
-    parser.add_argument("--path_wsi", help="path to the encoded wsi")
+    parser.add_argument("--path_tiles", help="path to the encoded wsi")
     parser.add_argument("--table_data", help='path to the table data')
     parser.add_argument("--id", help="ID of the config", type=int)
     parser.add_argument("--res", type=int, help="resolution of the wsi")
+    parser.add_argument("--target_name", type=str, help='name of the target in the table_data')
     args = parser.parse_args()
     sampler = Sampler(args)
     params = sampler.sample()

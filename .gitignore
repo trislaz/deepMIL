@@ -4,8 +4,12 @@ minimal_example/
 .vscode/
 __pycache__/
 outputs/
+cross_val/outputs/
+cross_val/.nextflow/
+cross_val/work/
 labels_tcga_tnbc_strat.csv
 
+cross_val/.nextflow.log*
 
 model.pt.tar
 model_best.pt.tar

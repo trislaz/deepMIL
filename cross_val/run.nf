@@ -1,15 +1,15 @@
 #!/usr/bin/env nextflow
 
-model_name = Channel.from('conan', '1s', 'attentionmil')
-resolution = Channel.from(1, 2) .into{ resolution1; resolution2}
+model_name = Channel.from('attentionmil', '1s')
+resolution = Channel.from(2) .into{ resolution1; resolution2}
 model_res = model_name .combine (resolution1)
 dataset = 'tcga_all'
-path_wsi = '/path/'
-table_data = '/path/'
+table_data = '/Users/trislaz/Documents/cbio/data/tcga/tcga_balanced_lst.csv'
+target_name = 'LST_status'
 nb_para = 2
-test_fold = 4
-repetition = 2
-epochs = 5
+test_fold = 1
+repetition = 1
+epochs = 3
 
 
 //
@@ -33,16 +33,17 @@ process SampleHyperparameter {
     set val(model), val(res), file("config_${c}.yaml") into configs
 
     script:
+    path_tiles = '/Users/trislaz/Documents/cbio/data/tcga/tcga_all_encoded/mat_pca/'
     output_folder = "./outputs/${dataset}/${model}/${res}/"
     py = file("./hyperparameter_sampler.py")
     """
     python $py --model_name ${model} \
-               --path_wsi ${path_wsi} \
+               --path_tiles ${path_tiles} \
                --table_data ${table_data} \
                --id ${c} \
-               --res ${res} 
+               --res ${res} \
+               --target_name ${target_name}
     """
-
 }
 
 // Trains the models for each (n, t, r)
@@ -84,8 +85,8 @@ process WritesResultFile {
     file('*.csv') into table_results
 
     script:
-    output_folder = "./outputs/${dataset}/${model}/${res}/"
-    py = './writes_results.py'
+    output_folder = file("./outputs/${dataset}/${model}/${res}/")
+    py = file('./writes_results.py')
     """
     python $py --path ${output_folder} 
     """

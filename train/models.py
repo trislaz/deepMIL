@@ -59,6 +59,7 @@ class DeepMIL(Model):
         factor = factor[self.ref_metric]
         if self.best_ref_metric is None:
             self.best_ref_metric = metrics[self.ref_metric]
+            self.best_metrics = metrics
         if self.best_ref_metric * factor > metrics[self.ref_metric] * factor:
             self.best_ref_metric = metrics[self.ref_metric]
             self.best_metrics = metrics
