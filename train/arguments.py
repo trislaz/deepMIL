@@ -56,6 +56,10 @@ def get_arguments(train=True):
                             type=int,
                             default=1,
                             help="identifier of the repetition. Used to ID the result.")
+        parser.add_argument('--lr',
+                            type=float,
+                            help='learning rate',
+                            default=0.003)
     else: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
         parser.add_argument("--model_path",
                             type=str,

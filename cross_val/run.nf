@@ -1,15 +1,15 @@
 #!/usr/bin/env nextflow
 
 model_name = Channel.from('conan', '1s', 'attentionmil')
-resolution = Channel.from(1, 2)
-model_res = model_name .combine (resolution)
+resolution = Channel.from(1, 2) .into{ resolution1; resolution2}
+model_res = model_name .combine (resolution1)
 dataset = 'tcga_all'
 path_wsi = '/path/'
 table_data = '/path/'
 nb_para = 2
 test_fold = 4
-repetition = 15
-epochs = 100
+repetition = 2
+epochs = 5
 
 
 //
@@ -23,13 +23,14 @@ epochs = 100
 // I choose to use a random sampling for the search of parameters.
 process SampleHyperparameter {
     publishDir "${output_folder}/configs/", overwrite: true, pattern: "*.yaml", mode: 'copy'
-    queue 'cpu'
+    //queue 'cpu'
 
     input:
     set val(model), val(res) from model_res
+    each c from 1..nb_para
 
     output:
-    set val(model), val(res), file('*.yaml') into configs
+    set val(model), val(res), file("config_${c}.yaml") into configs
 
     script:
     output_folder = "./outputs/${dataset}/${model}/${res}/"
@@ -38,7 +39,7 @@ process SampleHyperparameter {
     python $py --model_name ${model} \
                --path_wsi ${path_wsi} \
                --table_data ${table_data} \
-               --nb_para ${nb_para} \
+               --id ${c} \
                --res ${res} 
     """
 
@@ -47,9 +48,10 @@ process SampleHyperparameter {
 // Trains the models for each (n, t, r)
 process Train {
     publishDir "${output_folder}", overwrite: true, pattern: "*.pt.tar", mode: 'copy'
+    publishDir "${output_folder}", overwrite: true, pattern: "*.yaml", mode: 'copy'
 
     input:
-    val(model), val(res), file(config) from configs
+    set val(model), val(res), file(config) from configs
     each test from 1..test_fold
     each repeat from 1..repetition
 
@@ -57,12 +59,9 @@ process Train {
     set val(model), file('*.pt.tar') into results
 
     script:
-    py = '/Users/trislaz/Documents/cbio/projets/deepMIL_tris/train/train.py'
-    output_folder = "./outputs/${dataset}/${model}/${res}/${config.baseName}/test_${test}/${repeat}/"
-    config.copyTo(output_folder)
-    
+    py = file('../train/train.py')
+    output_folder = file("./outputs/${dataset}/${model}/${res}/${config.baseName}/test_${test}/${repeat}/")
     """
-    module load cuda10.0
     python $py --config ${config} --test_fold $test --epochs $epochs --repeat $repeat
     """
 }
@@ -79,7 +78,7 @@ process WritesResultFile {
 
     input:
     set val(model), _ from all_done 
-    each res from resolution
+    each res from resolution2
 
     output:
     file('*.csv') into table_results

@@ -64,14 +64,13 @@ def main():
     parser.add_argument("--model_name", type=str)
     parser.add_argument("--path_wsi", help="path to the encoded wsi")
     parser.add_argument("--table_data", help='path to the table data')
-    parser.add_argument("--nb_para", help="number of sets of hyperparameter to draw", type=int)
+    parser.add_argument("--id", help="ID of the config", type=int)
     parser.add_argument("--res", type=int, help="resolution of the wsi")
     args = parser.parse_args()
     sampler = Sampler(args)
-    for n in range(args.nb_para):
-        params = sampler.sample()
-        with open('config_{}.yaml'.format(n), 'w') as config:
-            config.write(yaml.dump(params))
+    params = sampler.sample()
+    with open('config_{}.yaml'.format(args.id), 'w') as config:
+        config.write(yaml.dump(params))
 
 if __name__ == "__main__":
     main()        

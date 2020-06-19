@@ -1,7 +1,6 @@
 from arguments import get_arguments
 from dataloader import make_loaders
 from models import DeepMIL
-import sklearn.metrics as metrics
 import numpy as np
 
 # For the sklearn warnings
@@ -45,7 +44,7 @@ def val(model, dataloader):
 
 def main():
     args = get_arguments(train=True)
-    model = DeepMIL(args=args) 
+    model = DeepMIL(args=args)
     model.get_summary_writer()
     dataloader_train, dataloader_val = make_loaders(args)
     model.target_correspondance = dataloader_train.dataset.target_correspondance # Will be useful when writing the results. TODO change that.
@@ -60,4 +59,3 @@ def main():
 if __name__ == '__main__':
     warnings.filterwarnings('always')
     main()
-

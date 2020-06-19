@@ -138,7 +138,7 @@ def copy_best_to_root(path, param):
     """
     c, t, r = param
     model_path = os.path.join(path, "config_{}/test_{}/repeat_{}/model_best.pt.tar".format(c, t, r))
-    config_path = os.path.join(path, "config_{}/test_{}/repeat_{}/model_best.pt.tar".format(c, t, r))
+    config_path = os.path.join(path, "configs/config_{}.yaml".format(c))
     shutil.copy(model_path, os.path.join(path, 'model_best_test_{}.pt.tar'.format(t)))
     shutil.copy(config_path, os.path.join(path, 'best_config_{}.yaml'.format(c)))
 

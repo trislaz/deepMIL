@@ -39,7 +39,7 @@ class DeepMIL(Model):
         self.target_correspondance = [] # Useful when writing the results
         self.network = self._get_network()
         self.criterion = BCELoss()
-        optimizer = Adam(self.network.parameters(), lr=0.003)
+        optimizer = Adam(self.network.parameters(), lr=args.lr)
         self.optimizers = [optimizer]
         self.get_schedulers()
 
