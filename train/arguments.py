@@ -59,6 +59,10 @@ def get_arguments(train=True):
                             type=float,
                             help='learning rate',
                             default=0.003)
+        parser.add_argument('--dropout',
+                            type=float,
+                            help='dropout parameter',
+                            default=0)
     else: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
         parser.add_argument("--model_path",
                             type=str,
@@ -81,6 +85,5 @@ def get_arguments(train=True):
         args.constant_size = False
     else:
         args.constant_size = True
-    args.dropout = 0.3
     return args
 

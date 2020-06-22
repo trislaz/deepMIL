@@ -12,6 +12,16 @@ from torchvision import transforms
 # TODO change the get_* functions with _get_*
 # TODO as soon as required, put the decription of args.
 
+def is_in_args(args, name, default):
+    """Checks if the parammeter is specified in the args Namespace
+    If not, attributes him the default value
+    """
+    if name in args:
+        para = args.para
+    else:
+        para = default
+    return para
+
 class AttentionMILFeatures(Module):
     """
     Implements deepMIL while taking 1D vectors as instances (output of resnet for example)
@@ -19,22 +29,23 @@ class AttentionMILFeatures(Module):
     """
     def __init__(self, args):
         super(AttentionMILFeatures, self).__init__()
+        width_fe = is_in_args(args, 'width_fe', 64)
         self.feature_extractor = Sequential(
-            Linear(args.feature_depth, 64),
-            ReLU(0.2),
+            Linear(args.feature_depth, width_fe),
+            ReLU(),
             Dropout(p=args.dropout),
-            Linear(64, 64),
-            ReLU(0.2),
+            Linear(width_fe, width_fe),
+            ReLU(),
             Dropout(p=args.dropout)
         )
         self.weight_extractor = Sequential(
-            Linear(64, 32),
+            Linear(width_fe, int(width_fe/2)),
             Tanh(),
-            Linear(32, 1),
+            Linear(int(width_fe/2), 1),
             Softmax(dim=-2) # Softmax sur toutes les tuiles. somme à 1.
         )
         self.classifier = Sequential(
-            Linear(64, 1),
+            Linear(width_fe, 1),
             Sigmoid()
         )
     def forward(self, x):
@@ -78,22 +89,24 @@ class model1S(Module):
     def __init__(self, args):
         super(model1S, self).__init__()
         use_bn = args.constant_size & (args.batch_size > 8)
-        self.norm_layer = get_norm_layer(use_bn)
+        norm_layer = get_norm_layer(use_bn)
+        n_clusters = is_in_args(args, 'n_clusters', 128)
+        hidden_fcn = is_in_args(args, 'hidden_fcn', 64)
         self.continuous_clusters = Sequential(
             Conv1d(in_channels=args.feature_depth, 
-                   out_channels=128,
+                   out_channels=n_clusters,
                    kernel_size=1),
-            self.norm_layer(128),
+            norm_layer(n_clusters),
             ReLU(),
             Dropout(p=args.dropout)
         )
         self.classifier = Sequential(
-            Linear(in_features=128,
-                   out_features=64), # Hidden_fc
-            self.norm_layer(64),
+            Linear(in_features=n_clusters,
+                   out_features=hidden_fcn), # Hidden_fc
+            norm_layer(hidden_fcn),
             ReLU(),
             Dropout(p=args.dropout),
-            Linear(in_features=64,
+            Linear(in_features=hidden_fcn,
                    out_features=1),
             Sigmoid()
         )
@@ -155,41 +168,41 @@ class Conan(Module):
     """
     def __init__(self, args):
         self.k = 10
-        self.hidden1 = 32
-        self.hidden2 = 8
-        self.hidden_fcn = 32
+        hidden1 = is_in_args(args, 'hidden1', 32)
+        hidden2 = int(hidden1/4) 
+        hidden_fcn = is_in_args(args, 'hidden_fcn', 32)
         use_bn = args.constant_size & (args.batch_size > 8)
         super(Conan, self).__init__()
         self.continuous_clusters = Sequential(
             Conv1d_bn(in_channels=args.feature_depth,
-                      out_channels=self.hidden1, 
+                      out_channels=hidden1, 
                       dropout=args.dropout, 
                       use_bn=use_bn),
-            Conv1d_bn(in_channels=self.hidden1,
-                      out_channels=self.hidden2, 
+            Conv1d_bn(in_channels=hidden1,
+                      out_channels=hidden1, 
                       dropout=args.dropout, 
                       use_bn=use_bn),
-            Conv1d_bn(in_channels=self.hidden2,
-                      out_channels=self.hidden1, 
+            Conv1d_bn(in_channels=hidden2,
+                      out_channels=hidden1, 
                       dropout=args.dropout,
                       use_bn=use_bn)
         )
         self.weights = Sequential(
-            Conv1d(in_channels=self.hidden1, 
+            Conv1d(in_channels=hidden1, 
                    out_channels=1,
                    kernel_size=1),
             ReLU()
         )
         self.classifier = Sequential(
-            Dense_bn(in_channels=(self.hidden1 + 1) * 2 * self.k + self.hidden1,
-                     out_channels=self.hidden_fcn,
+            Dense_bn(in_channels=(hidden1 + 1) * 2 * self.k + self.hidden1,
+                     out_channels=hidden_fcn,
                      dropout=args.dropout, 
                      use_bn=use_bn),
-            Dense_bn(in_channels=self.hidden_fcn,
-                     out_channels=self.hidden_fcn, 
+            Dense_bn(in_channels=hidden_fcn,
+                     out_channels=hidden_fcn, 
                      dropout=args.dropout,
                      use_bn=use_bn),
-            Linear(in_features=self.hidden_fcn,
+            Linear(in_features=hidden_fcn,
                    out_features=1),
             Sigmoid()
         )
