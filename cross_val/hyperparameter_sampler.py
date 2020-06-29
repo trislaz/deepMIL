@@ -11,7 +11,7 @@ from argparse import ArgumentParser
 class Sampler:
     parameters_per_model = {"attentionmil": ['width_fe'],
                         "1s": ['n_clusters', 'hidden_fcn'],
-                        "conan":['hidden1', 'hidden2', 'hidden_fcn']}
+                        "conan":['hidden1', 'hidden_fcn']}
     global_parameters = ["lr", "batch_size", "nb_tiles", "dropout"]
     res_to_tiles = {1: (100, 4000), 2: (10, 400)} #donne la fourchette du nb de tuiles pour chaque rés
 
@@ -40,22 +40,22 @@ class Sampler:
     @staticmethod
     def width_fe_sampler():
         s = np.random.choice([16, 32, 64, 128, 256])
-        return s
+        return int(s)
 
-   @staticmethod 
+    @staticmethod 
     def n_clusters_sampler():
         s = np.random.choice([16, 32, 64, 128, 256])
-        return s
+        return int(s)
 
     @staticmethod    
     def hidden_fcn_sampler():
-        s = np.random.choice([[16, 32, 64, 128, 256]])
-        return s
+        s = np.random.choice([16, 32, 64, 128, 256])
+        return int(s)
         
     @staticmethod
     def hidden1_sampler():
-        s = np.random.choice([[16, 32, 64, 128, 256]])
-        return s
+        s = np.random.choice([16, 32, 64, 128, 256])
+        return int(s)
     
     @staticmethod
     def batch_size_sampler():
@@ -71,11 +71,14 @@ class Sampler:
 
     def nb_tiles_sampler(self):
         low, high = self.res_to_tiles[self.res]
-        take_all_tiles = np.random.binomial(1, self.p)
-        if take_all_tiles:
-            s = 0
-        else:
+        if self.model_name == 'conan':
             s = np.random.randint(low, high)
+        else:
+            take_all_tiles = np.random.binomial(1, self.p)
+            if take_all_tiles:
+                s = 0
+            else:
+                s = np.random.randint(low, high)
         return s
 
     def sample(self):

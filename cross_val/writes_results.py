@@ -72,11 +72,11 @@ def mean_dataframe(df):
             dft_m = dft_m.drop('repeat').to_frame().transpose()
             rows_r.append(dft_m)
             rows_t.append(dft_m)
-        df_mean_t = pd.concat(rows_t)
+        df_mean_t = pd.concat(rows_t, ignore_index=True)
         df_mean_t = df_mean_t.drop('test', axis=1)
         rows_rt.append(df_mean_t.mean(axis=0).to_frame().transpose())
-    df_mean_r = pd.concat(rows_r)
-    df_mean_rt = pd.concat(rows_rt)
+    df_mean_r = pd.concat(rows_r, ignore_index=True)
+    df_mean_rt = pd.concat(rows_rt, ignore_index=True)
     return df_mean_r, df_mean_rt
 
 def select_best_config(df, ref_metric):
@@ -96,8 +96,7 @@ def select_best_config(df, ref_metric):
     int 
         best config
     """
-    max_index = df.idxmax(axis=0)
-    best_config = df.iloc[max_index[ref_metric]]['config']
+    best_config = df.loc[df[ref_metric].idxmax(), 'config']
     return int(best_config)
 
 def select_best_repeat(df, best_config, ref_metric, path):
@@ -128,7 +127,7 @@ def select_best_repeat(df, best_config, ref_metric, path):
     selection = []
     for t in tests:
         df_t = df_best_config[df_best_config['test'] == int(t)]
-        best_rep = df_t.iloc[df_t.idxmax(axis=0)[ref_metric]]['repeat'].item()
+        best_rep = df.loc[df_t[ref_metric].idxmax(), 'repeat']
         selection.append((int(best_config), int(t), int(best_rep)))
     return selection
 
@@ -139,8 +138,8 @@ def copy_best_to_root(path, param):
     c, t, r = param
     model_path = os.path.join(path, "config_{}/test_{}/{}/model_best.pt.tar".format(c, t, r))
     config_path = os.path.join(path, "configs/config_{}.yaml".format(c))
-    shutil.copy(model_path, os.path.join(path, 'model_best_test_{}.pt.tar'.format(t)))
-    shutil.copy(config_path, os.path.join(path, 'best_config_{}.yaml'.format(c)))
+    shutil.copy(model_path, 'model_best_test_{}.pt.tar'.format(t))
+    shutil.copy(config_path, 'best_config_{}.yaml'.format(c))
 
 def main():
     parser = ArgumentParser()
@@ -149,11 +148,11 @@ def main():
     models = glob(os.path.join(args.path, '**/*_best.pt.tar'), recursive=True)
     rows = [] 
     for m in models:
-        state = torch.load(m)
+        state = torch.load(m, map_location='cpu')
         args_m = state['args']
         references = extract_references(args_m)
         metrics = state['best_metrics']
-        metrics = convert_flatten(metrics)
+        #metrics = convert_flatten(metrics) I flattened the metrics directly in the models.py file
         references.update(metrics)
         rows.append(references)
 
