@@ -2,12 +2,13 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import torch
 import yaml
 
-def get_arguments(train=True):
+def get_arguments(train=True, config=None):
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('--config',
                         type=str,
-                        help='path to the config file. If None, use the command line parser')
+                        help='path to the config file. If None, use the command line parser', 
+                        default=config)
     # Data
     parser.add_argument("--path_tiles",
                         type=str, 
@@ -21,7 +22,7 @@ def get_arguments(train=True):
     # Data & model (in_layer)
     parser.add_argument("--feature_depth",
                         type=int,
-                        default=2048,
+                        default=256,
                         help="number of features to keep")
     parser.add_argument('--table_data', 
                         type=str, 
@@ -30,40 +31,39 @@ def get_arguments(train=True):
                         type=str,
                         default='attentionmil', 
                         help='name of the model used. Avail : attentionmil | 1s')
-    if train:
-        parser.add_argument("--patience", 
-                            type=int,
-                            default=0,
-                            help="Patience parameter for early stopping. If 0, then no early stopping is set (patience set to epochs)")
-        parser.add_argument('--epochs', 
-                            type=int,
-                            default=100,
-                            help="number of epochs for training")
-        parser.add_argument("--batch_size",
-                            type=int,
-                            default=1,
-                            help="Batch Size = how many WSI in a batch")
-        parser.add_argument('--nb_tiles',
-                            type=int,
-                            default=0,
-                            help='number of tiles per WSI. If 0, the whole slide is processed.')
-        parser.add_argument('--ref_metric',
-                            type=str,
-                            default='accuracy',
-                            help='reference metric for validation (which model to keep etc...')
-        parser.add_argument('--repeat',
-                            type=int,
-                            default=1,
-                            help="identifier of the repetition. Used to ID the result.")
-        parser.add_argument('--lr',
-                            type=float,
-                            help='learning rate',
-                            default=0.003)
-        parser.add_argument('--dropout',
-                            type=float,
-                            help='dropout parameter',
-                            default=0)
-    else: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
+    parser.add_argument("--patience", 
+                        type=int,
+                        default=0,
+                        help="Patience parameter for early stopping. If 0, then no early stopping is set (patience set to epochs)")
+    parser.add_argument('--epochs', 
+                        type=int,
+                        default=100,
+                        help="number of epochs for training")
+    parser.add_argument("--batch_size",
+                        type=int,
+                        default=1,
+                        help="Batch Size = how many WSI in a batch")
+    parser.add_argument('--nb_tiles',
+                        type=int,
+                        default=0,
+                        help='number of tiles per WSI. If 0, the whole slide is processed.')
+    parser.add_argument('--ref_metric',
+                        type=str,
+                        default='accuracy',
+                        help='reference metric for validation (which model to keep etc...')
+    parser.add_argument('--repeat',
+                        type=int,
+                        default=1,
+                        help="identifier of the repetition. Used to ID the result.")
+    parser.add_argument('--lr',
+                        type=float,
+                        help='learning rate',
+                        default=0.003)
+    parser.add_argument('--dropout',
+                        type=float,
+                        help='dropout parameter',
+                        default=0)
+    if not train: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
         parser.add_argument("--model_path",
                             type=str,
                             help="Path to the model to load")
