@@ -18,7 +18,7 @@ def is_in_args(args, name, default):
     If not, attributes him the default value
     """
     if name in args:
-        para = args.para
+        para = getattr(args, name)
     else:
         para = default
     return para
@@ -188,40 +188,40 @@ class Conan(Module):
     def __init__(self, args):
         self.k = 10
         self.hidden1 = is_in_args(args, 'hidden1', 32)
-        self.hidden2 = int(hidden1/4) 
+        self.hidden2 = self.hidden1//4 
         self.hidden_fcn = is_in_args(args, 'hidden_fcn', 32)
         use_bn = args.constant_size & (args.batch_size > 8)
         super(Conan, self).__init__()
         self.continuous_clusters = Sequential(
             Conv1d_bn(in_channels=args.feature_depth,
-                      out_channels=hidden1, 
+                      out_channels=self.hidden1, 
                       dropout=args.dropout, 
                       use_bn=use_bn),
-            Conv1d_bn(in_channels=hidden1,
-                      out_channels=hidden2, 
+            Conv1d_bn(in_channels=self.hidden1,
+                      out_channels=self.hidden2, 
                       dropout=args.dropout, 
                       use_bn=use_bn),
-            Conv1d_bn(in_channels=hidden2,
-                      out_channels=hidden1, 
+            Conv1d_bn(in_channels=self.hidden2,
+                      out_channels=self.hidden1, 
                       dropout=args.dropout,
-                      use_bn=use_bn)
+                      use_bn=use_bn),
         )
         self.weights = Sequential(
-            Conv1d(in_channels=hidden1, 
+            Conv1d(in_channels=self.hidden1, 
                    out_channels=1,
                    kernel_size=1),
             ReLU()
         )
         self.classifier = Sequential(
-            Dense_bn(in_channels=(hidden1 + 1) * 2 * self.k + hidden1,
-                     out_channels=hidden_fcn,
+            Dense_bn(in_channels=(self.hidden1 + 1) * 2 * self.k + self.hidden1,
+                     out_channels=self.hidden_fcn,
                      dropout=args.dropout, 
                      use_bn=use_bn),
-            Dense_bn(in_channels=hidden_fcn,
-                     out_channels=hidden_fcn, 
+            Dense_bn(in_channels=self.hidden_fcn,
+                     out_channels=self.hidden_fcn, 
                      dropout=args.dropout,
                      use_bn=use_bn),
-            Linear(in_features=hidden_fcn,
+            Linear(in_features=self.hidden_fcn,
                    out_features=1),
             Sigmoid()
         )
@@ -234,11 +234,10 @@ class Conan(Module):
 
         ## Aggregation
         selection = torch.cat((indices[:, :, :self.k], indices[:, :, -self.k:]), axis=-1)
-        selection_out = torch.cat([selection] * self.hidden1, axis=1)
+        selection_out = torch.cat([selection] *self.hidden1, axis=1)
         out = torch.gather(out, -1, selection_out)
         scores = torch.gather(scores, -1, selection)
         avg = torch.mean(out, dim=-1)
-
         out = torch.cat((scores.flatten(1, -1), avg.flatten(1, -1), out.flatten(1, -1)), axis=-1)
         out = self.classifier(out)
         out = out.squeeze(-1)
@@ -256,7 +255,6 @@ class FeatureExtractor(Module):
            MaxPool3d((1, 2, 2)),
            Conv2d_bn(32, 32, dropout, use_bn))
         self.dense_layer = Dense_bn(self.in_dense, out_shape, dropout, use_bn)
-
     def forward(self, x):
         x = self.conv_layers(x)
         x = x.permute(0, 2, 1, 3, 4)

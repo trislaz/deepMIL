@@ -129,7 +129,7 @@ class EmbededWSI(Dataset):
         * a $args.target_name column, of course
         * a test columns, stating the test_fold number of each image.
     """
-    def __init__(self, args):
+    def __init__(self, args, predict=False):
         """Initialises the MIL model.
         
         Parameters
@@ -148,6 +148,7 @@ class EmbededWSI(Dataset):
         """
         super(EmbededWSI, self).__init__()
         self.args = args
+        self.predict = predict
         self.table_data = pd.read_csv(args.table_data)
         self.files, self.target_dict = self._make_db()
         self.constant_size = (args.nb_tiles != 0)
@@ -187,10 +188,10 @@ class EmbededWSI(Dataset):
         table = self.table_data
         name, _ = os.path.splitext(os.path.basename(f))
         is_in_db = name in table['ID'].values
-        if 'test' in table.columns:
+        if 'test' in table.columns and (not self.predict):
             is_in_train = (table[table['ID'] == name]['test'] != self.args.test_fold).item() if is_in_db else False # "keep if i'm not test"
             is_in_test = (table[table['ID'] == name]['test'] == self.args.test_fold).item() if is_in_db else False
-            is_in_db = is_in_train if args.train else is_in_test
+            is_in_db = is_in_train if self.args.train else is_in_test
         return is_in_db
 
     def __len__(self):
@@ -229,8 +230,9 @@ def collate_variable_size(batch):
     target = [torch.FloatTensor([item[1]]) for item in batch]
     return [data, target]
 
-def make_loaders(args):
-    dataset = EmbededWSI(args=args)
+def make_loaders(args, predict=False):
+    num_workers = 12
+    dataset = EmbededWSI(args=args, predict=predict)
     if args.train: # In a context of cross validation.
         labels = [x[1] for x in dataset]
         splitter = StratifiedShuffleSplit(n_splits=1, test_size=0.2)
@@ -246,11 +248,11 @@ def make_loaders(args):
         else:
             collate = collate_variable_size
 
-        dataloader_train = DataLoader(dataset=dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=24, collate_fn=collate)
-        dataloader_val = DataLoader(dataset=dataset, batch_size=1, sampler=val_sampler, num_workers=24)
+        dataloader_train = DataLoader(dataset=dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=num_workers, collate_fn=collate, drop_last=True)
+        dataloader_val = DataLoader(dataset=dataset, batch_size=1, sampler=val_sampler, num_workers=num_workers)
         dataloaders = (dataloader_train, dataloader_val)
     else: # Testing on the whole dataset
-        dataloader = DataLoader(dataset=dataset, batch_size=1, num_workers=24)
+        dataloader = DataLoader(dataset=dataset, batch_size=1, num_workers=num_workers)
         dataloaders = (dataloader)
     return dataloaders
 

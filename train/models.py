@@ -6,7 +6,6 @@ from torch.optim import Adam
 import torch
 import numpy as np
 from sklearn import metrics
-
 from networks import AttentionMILFeatures, model1S, Conan
 from model_base import Model
 # For the sklearn warnings
@@ -82,7 +81,6 @@ class DeepMIL(Model):
         metrics_dict = {'accuracy': report['accuracy'], "precision": report['weighted avg']['precision'], 
             "recall": report['weighted avg']['recall'], "f1-score": report['weighted avg']['f1-score']}
         metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores)
-        print(metrics_dict['accuracy'])
         return metrics_dict
 
     def predict(self, x):
