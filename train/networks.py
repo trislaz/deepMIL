@@ -3,8 +3,9 @@ Implements the networks that can be used in train.
 use of pytorch.
 """
 import functools
-from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity,
-                      Sigmoid, Conv1d, ReLU, Dropout, BatchNorm1d, InstanceNorm1d)
+from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity, MaxPool2d, Conv3d,
+                      Sigmoid, Conv1d, Conv2d, ReLU, Dropout, BatchNorm1d, BatchNorm2d, InstanceNorm1d, 
+                      MaxPool3d)
 import torch
 from torchvision import transforms
 
@@ -62,9 +63,10 @@ class AttentionMILFeatures(Module):
         out = out.squeeze(-1).squeeze(-1)
         return out
 
-def get_norm_layer(use_bn=True):
+def get_norm_layer(use_bn=True, d=1):
+    bn_dict = {1:BatchNorm1d, 2:BatchNorm2d}
     if use_bn: #Use batch
-        norm_layer = functools.partial(BatchNorm1d, affine=True, track_running_stats=True)
+        norm_layer = functools.partial(bn_dict[d], affine=True, track_running_stats=True)
     else:
         #norm_layer = functools.partial(InstanceNorm1d, affine=False, track_running_stats=False)
         norm_layer = functools.partial(Identity)
@@ -119,6 +121,23 @@ class model1S(Module):
         out = out.squeeze(-1)
         return out
 
+class Conv2d_bn(Module):
+    def __init__(self, in_channels, out_channels, dropout, use_bn):
+        super(Conv2d_bn, self).__init__()
+        self.norm_layer = get_norm_layer(use_bn, d=2)
+        self.layer = Sequential(
+            Conv3d(in_channels=in_channels, 
+                   out_channels=out_channels,
+                   kernel_size=(1, 3, 3),
+                   padding=(0, 1, 1)),
+            self.norm_layer(out_channels),
+            ReLU(),
+            Dropout(p=dropout)
+        )
+    def forward(self, x):
+        out = self.layer(x)
+        return out
+
 class Conv1d_bn(Module):
     def __init__(self, in_channels, out_channels, dropout, use_bn):
         self.norm_layer = get_norm_layer(use_bn)
@@ -168,9 +187,9 @@ class Conan(Module):
     """
     def __init__(self, args):
         self.k = 10
-        hidden1 = is_in_args(args, 'hidden1', 32)
-        hidden2 = int(hidden1/4) 
-        hidden_fcn = is_in_args(args, 'hidden_fcn', 32)
+        self.hidden1 = is_in_args(args, 'hidden1', 32)
+        self.hidden2 = int(hidden1/4) 
+        self.hidden_fcn = is_in_args(args, 'hidden_fcn', 32)
         use_bn = args.constant_size & (args.batch_size > 8)
         super(Conan, self).__init__()
         self.continuous_clusters = Sequential(
@@ -179,7 +198,7 @@ class Conan(Module):
                       dropout=args.dropout, 
                       use_bn=use_bn),
             Conv1d_bn(in_channels=hidden1,
-                      out_channels=hidden1, 
+                      out_channels=hidden2, 
                       dropout=args.dropout, 
                       use_bn=use_bn),
             Conv1d_bn(in_channels=hidden2,
@@ -194,7 +213,7 @@ class Conan(Module):
             ReLU()
         )
         self.classifier = Sequential(
-            Dense_bn(in_channels=(hidden1 + 1) * 2 * self.k + self.hidden1,
+            Dense_bn(in_channels=(hidden1 + 1) * 2 * self.k + hidden1,
                      out_channels=hidden_fcn,
                      dropout=args.dropout, 
                      use_bn=use_bn),
@@ -225,16 +244,58 @@ class Conan(Module):
         out = out.squeeze(-1)
         return out
     
+class FeatureExtractor(Module):
+    def __init__(self, in_shape, out_shape, dropout, use_bn):
+        super(FeatureExtractor, self).__init__()
+        self.in_dense = int(32 * ((in_shape/4)**2))
+        self.conv_layers = Sequential(
+           Conv2d_bn(3, 32, dropout, use_bn),
+           Conv2d_bn(32, 64, dropout, use_bn),
+           MaxPool3d((1, 2, 2)),
+           Conv2d_bn(64, 32, dropout, use_bn),
+           MaxPool3d((1, 2, 2)),
+           Conv2d_bn(32, 32, dropout, use_bn))
+        self.dense_layer = Dense_bn(self.in_dense, out_shape, dropout, use_bn)
 
+    def forward(self, x):
+        x = self.conv_layers(x)
+        x = x.permute(0, 2, 1, 3, 4)
+        x = x.flatten(2, -1)
+        x = self.dense_layer(x)
+        return x
+
+class MILfromIm(Module):
+    models = {'attentionmil': AttentionMILFeatures, 
+                'conan': Conan, 
+                '1s': model1S 
+                }
+    def __init__(self, args):
+        super(MILfromIm, self).__init__()
+        self.feature_extractor = FeatureExtractor(in_shape=args.in_shape,
+                                                  out_shape=args.feature_depth,
+                                                  dropout=args.dropout,
+                                                  use_bn=False)
+        self.mil = self.models[args.model_name](args)
+    def forward(self, x):
+        x = self.feature_extractor(x)
+        x = self.mil(x)
+        return x
 
 if __name__ == '__main__':
     import numpy as np
     from argparse import Namespace
-    slide = np.load('/Users/trislaz/Documents/cbio/data/tcga/tcga_all_encoded/mat_pca/image_tcga_0.npy')
+    #slide = np.load('/Users/trislaz/Documents/cbio/data/tcga/tcga_all_encoded/mat_pca/image_tcga_0.npy')
+    slide = torch.ones((8, 3, 16, 32, 32))
     slide = torch.FloatTensor(slide)
-    slide = slide.unsqueeze(0)
-    args = Namespace(feature_depth=2048, dropout=0)
-    model = Conan(args)
+    args = {'feature_depth': 256,
+            'dropout':0,
+            'in_shape': 32,
+            'model_name': 'conan',
+            'constant_size':True,
+            'batch_size': 16
+            }
+    args = Namespace(**args)
+    model = MILfromIm(args)
     model.eval()
     output = model(slide)
     classif_score = output

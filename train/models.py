@@ -28,7 +28,7 @@ class DeepMIL(Model):
     """
     models = {'attentionmil': AttentionMILFeatures, 
                 'conan': Conan, 
-                '1s': model1S }
+                '1s': model1S}
 
     def __init__(self, args):
         super(DeepMIL, self).__init__(args)
@@ -140,7 +140,10 @@ class DeepMIL(Model):
                 'best_metrics': self.best_metrics}
         return dictio
 
-
+class DeepMILim(DeepMIL):
+    def __init__(self, args):
+        super(DeepMILim, self).__init__(args)
+        self.feature_extractor = {}
 
 
 
