@@ -121,9 +121,9 @@ class model1S(Module):
         out = out.squeeze(-1)
         return out
 
-class Conv2d_bn(Module):
+class Conv3d_bn(Module):
     def __init__(self, in_channels, out_channels, dropout, use_bn):
-        super(Conv2d_bn, self).__init__()
+        super(Conv3d_bn, self).__init__()
         self.norm_layer = get_norm_layer(use_bn, d=2)
         self.layer = Sequential(
             Conv3d(in_channels=in_channels, 
@@ -248,12 +248,12 @@ class FeatureExtractor(Module):
         super(FeatureExtractor, self).__init__()
         self.in_dense = int(32 * ((in_shape/4)**2))
         self.conv_layers = Sequential(
-           Conv2d_bn(3, 32, dropout, use_bn),
-           Conv2d_bn(32, 64, dropout, use_bn),
+           Conv3d_bn(3, 32, dropout, use_bn),
+           Conv3d_bn(32, 64, dropout, use_bn),
            MaxPool3d((1, 2, 2)),
-           Conv2d_bn(64, 32, dropout, use_bn),
+           Conv3d_bn(64, 32, dropout, use_bn),
            MaxPool3d((1, 2, 2)),
-           Conv2d_bn(32, 32, dropout, use_bn))
+           Conv3d_bn(32, 32, dropout, use_bn))
         self.dense_layer = Dense_bn(self.in_dense, out_shape, dropout, use_bn)
     def forward(self, x):
         x = self.conv_layers(x)
@@ -262,14 +262,15 @@ class FeatureExtractor(Module):
         x = self.dense_layer(x)
         return x
 
-class MILfromIm(Module):
+class MILGene(Module):
     models = {'attentionmil': AttentionMILFeatures, 
                 'conan': Conan, 
-                '1s': model1S 
-                }
+                '1s': model1S}     
+    feature_extractor = {0: Identity, 
+                         1: FeatureExtractor}
     def __init__(self, args):
-        super(MILfromIm, self).__init__()
-        self.feature_extractor = FeatureExtractor(in_shape=args.in_shape,
+        super(MILGene, self).__init__()
+        self.feature_extractor = self.feature_extractor[args.embedded](in_shape=args.in_shape,
                                                   out_shape=args.feature_depth,
                                                   dropout=args.dropout,
                                                   use_bn=False)

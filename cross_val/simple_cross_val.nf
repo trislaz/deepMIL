@@ -4,49 +4,18 @@ model_name = Channel.from('conan')
 resolution = Channel.from(1, 2) .into{ resolution1; resolution2; resolution3}
 model_res = model_name .combine (resolution1)
 dataset = 'tcga_all'
+
+// Useful Path
 table_data = '/mnt/data4/tlazard/data/tcga/tcga_all/tcga_balanced_lst.csv'
+config = file('/mnt/data4/tlazard/projet/deepMIL/config_default.yaml')
+
+// Training parameters
 target_name = 'LST_status'
 nb_para = 50
 test_fold = 5
 repetition = 5
 epochs = 100
 
-
-//
-//
-//TODO ADD THE CONFS FOR THE PROCESSES ( queue etc... )
-//
-//
-
-
-// This process samples the hyperparameters for all the runs.
-// I choose to use a random sampling for the search of parameters.
-process SampleHyperparameter {
-    publishDir "${output_folder}/configs/", overwrite: true, pattern: "*.yaml", mode: 'copy'
-    //queue 'cpu'
-
-    input:
-    set val(model), val(res) from model_res
-    each c from 1..nb_para
-
-    output:
-    set val(model), val(res), file("config_${c}.yaml") into configs
-
-    script:
-    wsi = "/mnt/data4/tlazard/AutomaticWSI/outputs/tcga_all_auto_mask/tiling/imagenet/${res}/mat_pca"
-    output_folder = "./outputs/${dataset}/${model}/${res}/"
-    py = file("./hyperparameter_sampler.py")
-    """
-    python $py --model_name ${model} \
-               --wsi ${wsi} \
-               --table_data ${table_data} \
-               --id ${c} \
-               --res ${res} \
-               --target_name ${target_name}
-    """
-}
-
-// Trains the models for each (n, t, r)
 process Train {
     publishDir "${output_folder}", overwrite: true, pattern: "*.pt.tar", mode: 'copy'
     publishDir "${output_folder}", overwrite: true, pattern: "*.yaml", mode: 'copy'
@@ -59,7 +28,7 @@ process Train {
  
 
     input:
-    set val(model), val(res), file(config) from configs
+    set val(model), val(res) from model_res
     each test from 0..test_fold-1
     each repeat from 1..repetition
 
@@ -68,7 +37,8 @@ process Train {
 
     script:
     py = file('../train/train.py')
-    output_folder = file("./outputs/${dataset}/${model}/${res}/${config.baseName}/test_${test}/${repeat}/")
+    output_folder = file("./outputs/${dataset}/${model}/${res}/test_${test}/${repeat}/")
+    config.copyTo(file("./outputs/${dataset}/${model}/${res}/"))
     """
 	module load cuda10.0
     python $py --config ${config} --test_fold $test --epochs $epochs --repeat $repeat
@@ -82,7 +52,6 @@ results .groupTuple()
 // needs to write this for each res/model_name. 
 // NE PAS chercher à collate tout. Effectuer quand tous les process précédents sont terminer, prend en entrée les tuples différents de ()
 process WritesResultFile {
-    publishDir "${output_folder}", overwrite: true, pattern: "*.yaml", mode: 'copy'
     publishDir "${output_folder}", overwrite: true, pattern: "*.pt.tar", mode: 'copy'
     publishDir "${output_folder}", overwrite: true, pattern: "*.csv", mode:'copy'
 

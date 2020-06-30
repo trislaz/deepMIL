@@ -21,10 +21,9 @@ def extract_references(args):
     """extracts a dictionnary with the parameters of a run
     return dict
     """
-    config = extract_config(args.config)
     t = args.test_fold
     r = args.repeat
-    ref = {'config': config, 'test': t, 'repeat': r}
+    ref = {'test': t, 'repeat': r}
     return ref
 
 def convert_flatten(d, parent_key='', sep='_'):
@@ -79,27 +78,7 @@ def mean_dataframe(df):
     df_mean_rt = pd.concat(rows_rt, ignore_index=True)
     return df_mean_r, df_mean_rt
 
-def select_best_config(df, ref_metric):
-    """Selects the best hyperparameter set (config)
-    Best set is the set that lead to the best mean validation performances
-    over all the learned models.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        dataframe containing the mean performances for each config (=df_mean_rt)
-    ref_metric : str
-        name of the metric on which to select the best config
-        = column of df
-    Returns
-    -------
-    int 
-        best config
-    """
-    best_config = df.loc[df[ref_metric].idxmax(), 'config']
-    return int(best_config)
-
-def select_best_repeat(df, best_config, ref_metric, path):
+def select_best_repeat(df,ref_metric, path):
     """Selects, for a given config (best_config), the models
     that led to the best validation results = single run.
     Attention, best result is here the highest result. 
@@ -123,12 +102,11 @@ def select_best_repeat(df, best_config, ref_metric, path):
         that unequivocately leads to a model.
     """
     tests = set(df['test'])
-    df_best_config = df[df['config'] == best_config]
     selection = []
     for t in tests:
-        df_t = df_best_config[df_best_config['test'] == int(t)]
+        df_t = df[df['test'] == int(t)]
         best_rep = df.loc[df_t[ref_metric].idxmax(), 'repeat']
-        selection.append((int(best_config), int(t), int(best_rep)))
+        selection.append((int(t), int(best_rep)))
     return selection
 
 def copy_best_to_root(path, param):
@@ -136,11 +114,9 @@ def copy_best_to_root(path, param):
     and the config file in the root path of the experiment.
     if cross_val : just testing a single config. therefore no copy to do
     """
-    c, t, r = param
-    model_path = os.path.join(path, "config_{}/test_{}/{}/model_best.pt.tar".format(c, t, r))
-    config_path = os.path.join(path, "configs/config_{}.yaml".format(c))
+    t, r = param
+    model_path = os.path.join(path, "test_{}/{}/model_best.pt.tar".format(t, r))
     shutil.copy(model_path, 'model_best_test_{}.pt.tar'.format(t))
-    shutil.copy(config_path, 'best_config_{}.yaml'.format(c))
 
 def main():
     parser = ArgumentParser()
@@ -160,7 +136,6 @@ def main():
     ref_metric = args_m.ref_metric # extract the reference from one of the models (last one)
     df = pd.DataFrame(rows)
     df_mean_r, df_mean_rt = mean_dataframe(df)
-    best_config = select_best_config(df_mean_rt, ref_metric)
     models_params = select_best_repeat(df=df, best_config=best_config, ref_metric=ref_metric, path=args.path)
     for param in models_params:
         copy_best_to_root(args.path, param)

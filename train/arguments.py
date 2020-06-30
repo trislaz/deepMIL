@@ -10,7 +10,7 @@ def get_arguments(train=True, config=None):
                         help='path to the config file. If None, use the command line parser', 
                         default=config)
     # Data
-    parser.add_argument("--path_tiles",
+    parser.add_argument("--wsi",
                         type=str, 
                         help="path to the tiled WSI")
     parser.add_argument("--target_name",
@@ -19,7 +19,15 @@ def get_arguments(train=True, config=None):
     parser.add_argument("--test_fold", 
                         type=int,
                         help="number of the fold used as a test")
+    parser.add_argument("--in_shape", 
+                        type=int,
+                        default=32,
+                        help='size of the input tile, used if embedded=0')
     # Data & model (in_layer)
+    parser.add_argument('--embedded', 
+                        type=int,
+                        default=1,
+                        help='If 1, use the already embedded WSI, else, takes image_tiles as input')
     parser.add_argument("--feature_depth",
                         type=int,
                         default=256,
@@ -63,6 +71,10 @@ def get_arguments(train=True, config=None):
                         type=float,
                         help='dropout parameter',
                         default=0)
+    parser.add_argument('--color_aug', 
+                        type=int,
+                        help='If embedded = 0, will use color augmentation',
+                        default=1)
     if not train: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
         parser.add_argument("--model_path",
                             type=str,
@@ -85,5 +97,6 @@ def get_arguments(train=True, config=None):
         args.constant_size = False
     else:
         args.constant_size = True
+    assert (args.constant_size & not args.embedded), "If you use the non-embedded model, nb_tiles must be defined."
     return args
 

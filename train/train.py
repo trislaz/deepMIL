@@ -1,5 +1,5 @@
 from arguments import get_arguments
-from dataloader import make_loaders
+from dataloader import Dataset_handler
 from models import DeepMIL
 import numpy as np
 
@@ -46,7 +46,8 @@ def main():
     args = get_arguments(train=True)
     model = DeepMIL(args=args)
     model.get_summary_writer()
-    dataloader_train, dataloader_val = make_loaders(args)
+    data = Dataset_handler(args)
+    dataloader_train, dataloader_val = data.get_loader(training=True)
     model.target_correspondance = dataloader_train.dataset.target_correspondance # Will be useful when writing the results. TODO change that.
     while model.counter['epoch'] < args.epochs:
         print("Epochs {}".format(round(model.counter['epoch'])))

@@ -4,77 +4,12 @@ from PIL import Image
 from glob import glob
 import numpy as np
 import torch
+from torchvision import transforms
 from sklearn.model_selection import StratifiedShuffleSplit
 import os
 
-class SingleFolder(Dataset):
-    imext = set(['.png', '.jpg'])
-    def __init__(self, args, transform=None):
-        super(SingleFolder, self).__init__()
-        self.path = args.wsi
-        self.transform = transform
-        self.target_name = args.target_name
-        self.n_sample = args.n_sample
-        self.table_data = pd.read_csv(args.table_data)
-        self.target_dict = dict()
-        self.imext = set(['.png', '.jpg'])
-        self.files = self._collect_files(args.wsi)
-        
-    def _collect_file_path(self, path):
-        """Creates a list of all path to the images.
-        """
-        out = []
-        slide = os.path.basename(path)
-        _ = self.make_target_dict(slide)
-        files = os.listdir(path)
-        files = [os.path.splitext(x) for x in files]
-        for name, ext in files:
-            if ext in self.imext:
-                out.append((os.path.join(path, name+ext), path))  
-        return out 
-
-    def make_target_dict(self, slide):
-        """extracts targets of f from the table_data
-        
-        Parameters
-        ----------
-        slide : str
-            name of the slide
-        """
-        is_in_table = slide in set(self.table_data['ID'])
-        if is_in_table:
-            target = self.table_data[self.table_data['ID'] == slide]['target'].values[0]
-            self.target_dict[slide] = target
-        return is_in_table
-    
-    def _collect_files(self, path):
-        self.transform_target()
-        return self._collect_file_path(path)
-
-    def __len__(self):
-        return len(self.files)
-
-    def transform_target(self):
-        """Adds to table to self.table_data
-        a numerical encoding of the target. Works for classif.
-        New columns is named "target"
-        """
-        table = self.table_data
-        T = pd.factorize(table[self.target_name])
-        table['target'] = T[0]
-        self.target_correspondance = T[1]
-        self.table_data = table
-
-    def __getitem__(self, idx):
-        impath, slide_path = self.files[idx]
-        image = Image.open(impath)
-        name_slide = os.path.basename(slide_path)
-        if self.transform is not None:
-            image = self.transform(image)
-        return image, float(self.target_dict[name_slide])
-
-class FolderWSI(SingleFolder):
-    def __init__(self, args, transform=None):
+class FolderWSI(Dataset):
+    def __init__(self, args, transform=None, predict=False):
         """Instantiate a WSI-tiles dataset.
         args must contain :
             * target_name, str, name of the target
@@ -100,21 +35,81 @@ class FolderWSI(SingleFolder):
         transform : torchvision.transforms, optional
             transf to apply to the images, by default None
         """
-        super(FolderWSI, self).__init__(args, transform)
+        super(FolderWSI, self).__init__()
+        self.args = args
+        self.table_data = pd.read_csv(args.table_data)
+        self.predict = predict
+        self.target_name = args.target_name
+        self._transform_target()
+        self.images = dict()
+        self.target_dict = dict()
+        self._get_images(args.wsi)
+        self.transform = transform
+        self.nb_tiles = args.nb_tiles
+        
+    def _get_images(self, path):
+        possible_dir = os.listdir(path)
+        for d in possible_dir:
+            if os.path.isdir(os.path.join(path, d)):
+                if self._make_target_dict(d):
+                    self.images[d] = glob(os.path.join(path, d, '*.jpg'))
 
-    def _collect_files(self, path):
-        """Collects all files : path is a folder full of folders, each being a wsi.
+    def _transform_target(self):
+        """Adds to table to self.table_data
+        a numerical encoding of the target. Works for classif.
+        New columns is named "target"
         """
-        out = []
-        self.transform_target()
-        paths = glob(os.path.join(path, '*'))
-        for p in paths:
-            is_in_table = self.make_target_dict(os.path.basename(p))
-            if is_in_table:
-                all_patches = self._collect_file_path(p)
-                np.random.shuffle(all_patches)
-                out += all_patches[:self.n_sample] #Randomly choose the first samples 
-        return out
+        table = self.table_data
+        T = pd.factorize(table[self.target_name])
+        table['target'] = T[0]
+        self.target_correspondance = T[1]
+        self.table_data = table    
+
+    def _make_target_dict(self, slide):
+        """extracts targets of f from the table_data
+        
+        Parameters
+        ----------
+        slide : str
+            name of the slide
+        """
+        is_in_db = self._is_in_db(slide)
+        if is_in_db:
+            target = self.table_data[self.table_data['ID'] == slide]['target'].values[0]
+            self.target_dict[slide] = target
+        return is_in_db
+
+    def _is_in_db(self, slide):
+        """Do we keep the file in the dataset ?
+        To test :
+            * Is the file in the table_data ?
+            * Is the file in the test set ?
+            * Is'nt the file an outsider .. ?
+            * Other reason to exclude an image.
+        """
+        table = self.table_data
+        is_in_db = slide in set(table['ID'])
+        if 'test' in table.columns and (not self.predict):
+            is_in_train = (table[table['ID'] == slide]['test'] != self.args.test_fold).item() if is_in_db else False # "keep if i'm not test"
+            is_in_test = (table[table['ID'] == slide]['test'] == self.args.test_fold).item() if is_in_db else False
+            is_in_db = is_in_train if self.args.train else is_in_test
+        return is_in_db
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        wsi = list(self.images)[idx]
+        impath = self.images[wsi]
+        np.random.shuffle(impath)
+        instances = []
+        for i in range(self.nb_tiles):
+            instance = Image.open(impath[i])
+            if self.transform is not None:
+                instance = self.transform(instance)
+            instances.append(instance)
+        instances = torch.stack(instances)
+        return instances, self.target_dict[wsi]
 
 class EmbededWSI(Dataset):
     """
@@ -137,7 +132,7 @@ class EmbededWSI(Dataset):
         args : Namespace
             must contain :
                 * table_data, str, path to the data info (.csv), with 'ID' column containing name of wsi.
-                * path_tiles, str, path to the embedded WSI (.npy) with name matching the 'ID' of table_data
+                * wsi, str, path to the embedded WSI (.npy) with name matching the 'ID' of table_data
                 * target_name, str, name of the target variable (name of column in table_data)
                 * device, torch.device
                 * test_fold, int, number of the fold used as test.
@@ -156,7 +151,7 @@ class EmbededWSI(Dataset):
     def _make_db(self):
         table = self.transform_target()
         target_dict = dict() #Key = path to the file, value=target
-        files = glob(os.path.join(self.args.path_tiles, '*.npy'))
+        files = glob(os.path.join(self.args.wsi, '*.npy'))
         files_filtered =[]
         for f in files:
             name, _ = os.path.splitext(os.path.basename(f))
@@ -230,49 +225,79 @@ def collate_variable_size(batch):
     target = [torch.FloatTensor([item[1]]) for item in batch]
     return [data, target]
 
-def make_loaders(args, predict=False):
-    num_workers = 12
-    dataset = EmbededWSI(args=args, predict=predict)
-    if args.train: # In a context of cross validation.
+class Dataset_handler:
+    def __init__(self, args, predict=False):
+        self.args = args
+        self.predict = predict
+        self.num_workers = 16
+        self.embedded = args.embedded
+        self.dataset_train = self._get_dataset(train=True)
+        self.dataset_val = self._get_dataset(train=False)
+        self.train_sampler, self.val_sampler = self._get_sampler(self.dataset_train)
+
+    def get_loader(self, training):
+        if training:
+            collate = None if self.args.constant_size else collate_variable_size
+            dataloader_train = DataLoader(dataset=self.dataset_train, batch_size=args.batch_size, sampler=self.train_sampler, num_workers=self.num_workers, collate_fn=collate, drop_last=True)
+            dataloader_val = DataLoader(dataset=self.dataset_val, batch_size=1, sampler=self.val_sampler, num_workers=self.num_workers)
+            dataloaders = (dataloader_train, dataloader_val) 
+        else: # Testing on the whole dataset
+            dataloaders = DataLoader(dataset=self.dataset_train, batch_size=1, num_workers=self.num_workers)
+        return dataloaders
+        
+    def _get_dataset(self, train):
+        if args.embedded:
+            dataset = EmbededWSI(self.args, predict=self.predict)
+        else:
+            dataset = FolderWSI(self.args, transform=get_transform(train=train, color_aug=self.args.color_aug))
+        return dataset
+    
+    def _get_sampler(self, dataset):
         labels = [x[1] for x in dataset]
         splitter = StratifiedShuffleSplit(n_splits=1, test_size=0.2)
-
-        # Shuffles dataset
         train_indices, val_indices = [x for x in splitter.split(X=labels, y=labels)][0]
         val_sampler = SubsetRandomSampler(val_indices)
         train_sampler = SubsetRandomSampler(train_indices)
+        return train_sampler, val_sampler
 
-        # Collating regime
-        if args.constant_size:
-            collate = None
+def get_transform(train, color_aug=False):
+    if train:
+        if color_aug:
+            transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomApply([transforms.ColorJitter(0.3, 0.3, 0.3)], p=0.5),
+                transforms.RandomGrayscale(p=0.1),
+                transforms.ToTensor()])
         else:
-            collate = collate_variable_size
-
-        dataloader_train = DataLoader(dataset=dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=num_workers, collate_fn=collate, drop_last=True)
-        dataloader_val = DataLoader(dataset=dataset, batch_size=1, sampler=val_sampler, num_workers=num_workers)
-        dataloaders = (dataloader_train, dataloader_val)
-    else: # Testing on the whole dataset
-        dataloader = DataLoader(dataset=dataset, batch_size=1, num_workers=num_workers)
-        dataloaders = (dataloader)
-    return dataloaders
-
-
+            transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.ToTensor()])
+    else:
+        transform = transforms.ToTensor()
+    return transform
 
 if __name__ == '__main__':
     ## To test it
     from argparse import Namespace
     args = Namespace()
-    args.table_data = "/Users/trislaz/Documents/cbio/projets/deepMIL_tris/labels_tcga_tnbc_strat.csv"
-    args.path_tiles = "/Users/trislaz/Documents/cbio/data/tcga/TCGA_TNBC/encoded/imagenet_R_2/2/mat_pca"
-    args.target_name = "LST_status"
+    args.table_data = "/Users/trislaz/Documents/cbio/data/breast_benchmark/bc_benchmark.csv"
+    args.wsi = "/Users/trislaz/Documents/cbio/data/breast_benchmark/tiled/"
+    args.target_name = "status"
+    args.embedded = False
     args.batch_size = 2
     args.test_fold = 1
+    args.color_aug = True
+    args.constant_size = True
     args.nb_tiles = 10
-    args.feature_depth = 2048
+    args.feature_depth = 256 
     args.device = torch.device('cpu')
 
-    db = EmbededWSI(args)
-    train, val = make_loaders(args)
-    for x, y in train:
+    ob = Dataset_handler(args)
+    train_l, val_l = ob.get_loader(True)
+    db = FolderWSI(args, transform=get_transform(True, True))
+    db2 = FolderWSI(args, transform=get_transform(True, True))
+    for x, y in train_l:
         print(x)
         print(y)

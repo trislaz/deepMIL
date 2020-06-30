@@ -7,7 +7,7 @@ import torch
 from torch import load
 from .arguments import get_arguments
 from .models import DeepMIL
-from .dataloader import make_loaders
+from .dataloader import make_loaders, Dataset_handler
 from collections import MutableMapping
 
 def convert_flatten(d, parent_key='', sep='_'):
@@ -40,7 +40,8 @@ def main(config=None, model_path=None,  w=False):
     state = torch.load(args.model_path, map_location='cpu')
     args.test_fold = state['args'].test_fold
     model.network.load_state_dict(state['state_dict'])
-    dataloader = make_loaders(args)
+    data = Dataset_handler(args)
+    dataloader = data.get_loader(training=False)
     results = test(model, dataloader)
     results['test'] = '{}'.format(args.test_fold)
     if w:
