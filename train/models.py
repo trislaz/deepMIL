@@ -6,7 +6,7 @@ from torch.optim import Adam
 import torch
 import numpy as np
 from sklearn import metrics
-from networks import AttentionMILFeatures, model1S, Conan
+from networks import AttentionMILFeatures, model1S, Conan, MILGene
 from model_base import Model
 # For the sklearn warnings
 
@@ -25,10 +25,6 @@ class DeepMIL(Model):
     """
     Class implementing a Deep MIL framwork. different Models a define upstairs
     """
-    models = {'attentionmil': AttentionMILFeatures, 
-                'conan': Conan, 
-                '1s': model1S}
-
     def __init__(self, args):
         super(DeepMIL, self).__init__(args)
         self.results_val = {'scores': [],
@@ -43,7 +39,7 @@ class DeepMIL(Model):
         self.get_schedulers()
 
     def _get_network(self):
-        net = self.models[self.args.model_name](self.args)        
+        net = MILGene(self.args)        
         net = net.to(self.args.device)
         return net
     

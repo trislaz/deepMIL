@@ -97,6 +97,5 @@ def get_arguments(train=True, config=None):
         args.constant_size = False
     else:
         args.constant_size = True
-    assert (args.constant_size & not args.embedded), "If you use the non-embedded model, nb_tiles must be defined."
     return args
 

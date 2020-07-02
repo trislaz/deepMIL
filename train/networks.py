@@ -262,10 +262,47 @@ class FeatureExtractor(Module):
         x = self.dense_layer(x)
         return x
 
+class SelfAttentionMIL(Module):
+    """Implemented according to Li et Eliceiri 2020
+    """
+    def __init__(self, args):
+        super(SelfAttentionMIL, self).__init__()
+        self.args = args
+        self.maxmil = Dense_bn(in_channels=args.feature_depth, 
+                               out_channels=1, 
+                               dropout=0,
+                               use_bn=0)
+        self.queries = Sequential(
+            Dense_bn(args.feature_depth, 124, 0, 0)
+        )
+        self.visu = Dense_bn(args.feature_depth, 124, 0, 0)
+        self.wsi_score = Dense_bn(124, 1, 0, 0)
+        self.classifier = Sequential(Dense_bn(2, 1, 0, 0), Sigmoid())
+
+    def forward(self, x):
+        # Ingredients of the self attention
+        milscores = self.maxmil(x)
+        queries = self.queries(x)
+        visu = self.visu(x)
+
+        max_scores, max_indices = torch.max(milscores, dim=1)
+        max_scores = max_scores.unsqueeze(-1)
+        max_indices = torch.cat([max_indices] * 124, axis=-1).unsqueeze(1) # Selects each of the 124 features that are part of the max-tile = creates a tensor of indices the shape of the queries
+        max_query = torch.gather(queries, -2, max_indices)
+        max_query = max_query.permute(0, 2, 1)
+        sa_scores = torch.matmul(queries, max_query)
+        sa_scores = sa_scores.permute(0, 2, 1)
+        weighted_visu = torch.matmul(sa_scores, visu)
+        wsi_scores = self.wsi_score(weighted_visu)
+        fused = torch.cat([max_scores, wsi_scores], axis=-2).squeeze(-1)
+        x = self.classifier(fused)
+        return x
+
 class MILGene(Module):
     models = {'attentionmil': AttentionMILFeatures, 
                 'conan': Conan, 
-                '1s': model1S}     
+                '1s': model1S, 
+                'sa': SelfAttentionMIL}     
     feature_extractor = {0: Identity, 
                          1: FeatureExtractor}
     def __init__(self, args):
@@ -284,7 +321,7 @@ if __name__ == '__main__':
     import numpy as np
     from argparse import Namespace
     #slide = np.load('/Users/trislaz/Documents/cbio/data/tcga/tcga_all_encoded/mat_pca/image_tcga_0.npy')
-    slide = torch.ones((8, 3, 16, 32, 32))
+    slide = torch.ones((14, 110, 256))
     slide = torch.FloatTensor(slide)
     args = {'feature_depth': 256,
             'dropout':0,
@@ -294,7 +331,7 @@ if __name__ == '__main__':
             'batch_size': 16
             }
     args = Namespace(**args)
-    model = MILfromIm(args)
+    model = SelfAttentionMIL(args)
     model.eval()
     output = model(slide)
     classif_score = output
