@@ -262,12 +262,12 @@ class FeatureExtractor(Module):
         x = self.dense_layer(x)
         return x
 
-class MILGene(Module):
+class MILGene(Module): #new name = MILModel
     models = {'attentionmil': AttentionMILFeatures, 
                 'conan': Conan, 
                 '1s': model1S}     
-    feature_extractor = {0: Identity, 
-                         1: FeatureExtractor}
+    feature_extractor = {1: Identity, 
+                         0: FeatureExtractor}
     def __init__(self, args):
         super(MILGene, self).__init__()
         self.feature_extractor = self.feature_extractor[args.embedded](in_shape=args.in_shape,

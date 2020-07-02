@@ -60,6 +60,7 @@ class DeepMIL(Model):
             self.best_ref_metric = metrics[self.ref_metric]
             self.best_metrics = metrics
         if self.best_ref_metric * factor > metrics[self.ref_metric] * factor:
+            print('old acc : {}, new acc : {}'.format(self.best_ref_metric, metrics[self.ref_metric]))
             self.best_ref_metric = metrics[self.ref_metric]
             self.best_metrics = metrics
         
@@ -77,7 +78,7 @@ class DeepMIL(Model):
         return val_metrics
 
     def _compute_metrics(self, scores, y_true):
-        report = metrics.classification_report(y_true=y_true, y_pred=scores.round(), output_dict=True)
+        report = metrics.classification_report(y_true=y_true, y_pred=scores.round(), output_dict=True, zero_division=0)
         metrics_dict = {'accuracy': report['accuracy'], "precision": report['weighted avg']['precision'], 
             "recall": report['weighted avg']['recall'], "f1-score": report['weighted avg']['f1-score']}
         metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores)
