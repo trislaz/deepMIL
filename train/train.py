@@ -40,7 +40,7 @@ def val(model, dataloader):
     state = model.make_state()
     print('mean val loss {}'.format(np.mean(mean_loss)))
     model.update_learning_rate(model.mean_val_loss)
-    model.early_stopping(model.mean_val_loss, state)
+    model.early_stopping(-to_write['accuracy'], state)
 
 def main():
     args = get_arguments(train=True)

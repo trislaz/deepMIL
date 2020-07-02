@@ -61,7 +61,7 @@ class Model(ABC):
         """Can be called after having define the optimizers (list-like)
         """
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau
-        self.schedulers = [scheduler(optimizer=o, patience=50) for o in self.optimizers]
+        self.schedulers = [scheduler(optimizer=o, patience=10) for o in self.optimizers]
 
     def update_learning_rate(self, metric):
         for sch in self.schedulers:
@@ -107,7 +107,7 @@ class EarlyStopping:
         #####################
         ## No progression ###
         #####################
-        elif loss > self.loss_min:
+        elif self.loss_min + 1e-6 < loss :
             self.counter += 1
             self.is_best = False
             if self.counter < self.patience:
@@ -121,6 +121,7 @@ class EarlyStopping:
         ## Learning WIP ######
         ######################
         else:
+            print(loss, self.loss_min, ' early stop!')
             self.is_best = True
             self.loss_min = loss
             self.counter = 0
@@ -130,4 +131,5 @@ class EarlyStopping:
     def save_checkpoint(self, state):
         torch.save(state, self.filename)
         if self.is_best:
+            print('SAVING BEST')
             shutil.copyfile(self.filename, self.filename.replace('.pt.tar', '_best.pt.tar'))

@@ -238,7 +238,7 @@ class Dataset_handler:
     def get_loader(self, training):
         if training:
             collate = None if self.args.constant_size else collate_variable_size
-            dataloader_train = DataLoader(dataset=self.dataset_train, batch_size=args.batch_size, sampler=self.train_sampler, num_workers=self.num_workers, collate_fn=collate, drop_last=True)
+            dataloader_train = DataLoader(dataset=self.dataset_train, batch_size=self.args.batch_size, sampler=self.train_sampler, num_workers=self.num_workers, collate_fn=collate, drop_last=True)
             dataloader_val = DataLoader(dataset=self.dataset_val, batch_size=1, sampler=self.val_sampler, num_workers=self.num_workers)
             dataloaders = (dataloader_train, dataloader_val) 
         else: # Testing on the whole dataset
@@ -246,7 +246,7 @@ class Dataset_handler:
         return dataloaders
         
     def _get_dataset(self, train):
-        if args.embedded:
+        if self.embedded:
             dataset = EmbededWSI(self.args, predict=self.predict)
         else:
             dataset = FolderWSI(self.args, transform=get_transform(train=train, color_aug=self.args.color_aug))
