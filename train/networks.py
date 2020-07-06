@@ -5,7 +5,7 @@ use of pytorch.
 import functools
 from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity, MaxPool2d, Conv3d,
                       Sigmoid, Conv1d, Conv2d, ReLU, Dropout, BatchNorm1d, BatchNorm2d, InstanceNorm1d, 
-                      MaxPool3d)
+                      MaxPool3d, functional)
 import torch
 from torchvision import transforms
 
@@ -267,17 +267,33 @@ class SelfAttentionMIL(Module):
     """
     def __init__(self, args):
         super(SelfAttentionMIL, self).__init__()
+        self.L = 128
         self.args = args
-        self.maxmil = Dense_bn(in_channels=args.feature_depth, 
-                               out_channels=1, 
-                               dropout=0,
-                               use_bn=0)
+        self.maxmil = Sequential(
+            Linear(args.feature_depth, 256),
+            ReLU(),
+            Dropout(args.dropout),
+            Linear(int(2*self.L), self.L),
+            ReLU(),
+            Dropout(args.dropout),
+            Linear(self.L, 1)
+            )
         self.queries = Sequential(
-            Dense_bn(args.feature_depth, 124, 0, 0)
-        )
-        self.visu = Dense_bn(args.feature_depth, 124, 0, 0)
-        self.wsi_score = Dense_bn(124, 1, 0, 0)
-        self.classifier = Sequential(Dense_bn(2, 1, 0, 0), Sigmoid())
+            Linear(args.feature_depth, int(2*self.L)),
+            ReLU(),
+            Dropout(args.dropout),
+            Linear(int(self.L*2), self.L)
+            )
+        self.visu = Sequential(
+            Linear(args.feature_depth, int(self.L*2)),
+            ReLU(),
+            Dropout(args.dropout),
+            Linear(int(self.L*2), self.L)
+            )
+        self.wsi_score = Sequential(
+            Linear(self.L, 1)
+            )
+        self.classifier = Sequential(Linear(2, 1), Sigmoid())
 
     def forward(self, x):
         # Ingredients of the self attention
@@ -287,15 +303,17 @@ class SelfAttentionMIL(Module):
 
         max_scores, max_indices = torch.max(milscores, dim=1)
         max_scores = max_scores.unsqueeze(-1)
-        max_indices = torch.cat([max_indices] * 124, axis=-1).unsqueeze(1) # Selects each of the 124 features that are part of the max-tile = creates a tensor of indices the shape of the queries
+        max_indices = torch.cat([max_indices] * self.L, axis=-1).unsqueeze(1) # Selects each of the 124 features that are part of the max-tile = creates a tensor of indices the shape of the queries
         max_query = torch.gather(queries, -2, max_indices)
         max_query = max_query.permute(0, 2, 1)
         sa_scores = torch.matmul(queries, max_query)
         sa_scores = sa_scores.permute(0, 2, 1)
+        sa_scores = functional.softmax(sa_scores, dim=-1)
         weighted_visu = torch.matmul(sa_scores, visu)
         wsi_scores = self.wsi_score(weighted_visu)
         fused = torch.cat([max_scores, wsi_scores], axis=-2).squeeze(-1)
         x = self.classifier(fused)
+        x = x.squeeze(-1)
         return x
 
 class MILGene(Module):
@@ -303,17 +321,17 @@ class MILGene(Module):
                 'conan': Conan, 
                 '1s': model1S, 
                 'sa': SelfAttentionMIL}     
-    feature_extractor = {0: Identity, 
-                         1: FeatureExtractor}
+    feature_extractor = {1: Identity, 
+                         0: FeatureExtractor}
     def __init__(self, args):
         super(MILGene, self).__init__()
-        self.feature_extractor = self.feature_extractor[args.embedded](in_shape=args.in_shape,
+        self.features_instances = self.feature_extractor[args.embedded](in_shape=args.in_shape,
                                                   out_shape=args.feature_depth,
                                                   dropout=args.dropout,
                                                   use_bn=False)
         self.mil = self.models[args.model_name](args)
     def forward(self, x):
-        x = self.feature_extractor(x)
+        x = self.features_instances(x)
         x = self.mil(x)
         return x
 
@@ -321,12 +339,12 @@ if __name__ == '__main__':
     import numpy as np
     from argparse import Namespace
     #slide = np.load('/Users/trislaz/Documents/cbio/data/tcga/tcga_all_encoded/mat_pca/image_tcga_0.npy')
-    slide = torch.ones((14, 110, 256))
+    slide = torch.ones((14, 110, 256))/10
     slide = torch.FloatTensor(slide)
     args = {'feature_depth': 256,
             'dropout':0,
             'in_shape': 32,
-            'model_name': 'conan',
+            'model_name': 'sa',
             'constant_size':True,
             'batch_size': 16
             }
