@@ -1,6 +1,6 @@
 Implémentation du deepMIL - WSI
 
-Contient différents modèles de multiple instance learning permettant de traiter 
+Contient différents modèles de multiple instance learning permettant de traiter
 les Whole Slide Images avec différents modes :
 * Possibilité de charger les WSI et d'apprendre les classifieurs MIL à partir : 
 	* Des WSI encodés; chaque WSI est alors une matrice (NxM) de N tuiles et M features, 
@@ -39,5 +39,4 @@ les Whole Slide Images avec différents modes :
 	* En cross val simple avec un lot d'hyperparamètre donné dans un fichier /cross_val/handcrafted_config/config.yaml,
 	lancement à partir du nf simple_cross_val.nf
 	* Un seul entrainement possible grace à train/train.py, qui peut etre feed avec soit un config.yaml, soit à la ligne de commande
-
 
