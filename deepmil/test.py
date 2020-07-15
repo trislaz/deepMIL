@@ -49,5 +49,3 @@ def main(config=None, model_path=None,  w=False):
         df_res.to_csv('results_test_{}.csv'.format(args.test_fold), index=False)
     return results 
 
-if __name__ == '__main__':
-    main()

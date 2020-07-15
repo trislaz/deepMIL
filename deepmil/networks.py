@@ -8,6 +8,8 @@ from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Iden
                       MaxPool3d, functional)
 import torch
 from torchvision import transforms
+import torchvision
+
 
 ## Use Cross_entropy loss nn.CrossEntropyLoss
 # TODO change the get_* functions with _get_*
@@ -121,15 +123,15 @@ class model1S(Module):
         out = out.squeeze(-1)
         return out
 
-class Conv3d_bn(Module):
+class Conv2d_bn(Module):
     def __init__(self, in_channels, out_channels, dropout, use_bn):
-        super(Conv3d_bn, self).__init__()
+        super(Conv2d_bn, self).__init__()
         self.norm_layer = get_norm_layer(use_bn, d=2)
         self.layer = Sequential(
-            Conv3d(in_channels=in_channels, 
+            Conv2d(in_channels=in_channels, 
                    out_channels=out_channels,
-                   kernel_size=(1, 3, 3),
-                   padding=(0, 1, 1)),
+                   kernel_size=(3, 3),
+                   padding=(1, 1)),
             self.norm_layer(out_channels),
             ReLU(),
             Dropout(p=dropout)
@@ -248,17 +250,17 @@ class FeatureExtractor(Module):
         super(FeatureExtractor, self).__init__()
         self.in_dense = int(32 * ((in_shape/4)**2))
         self.conv_layers = Sequential(
-           Conv3d_bn(3, 32, dropout, use_bn),
-           Conv3d_bn(32, 64, dropout, use_bn),
-           MaxPool3d((1, 2, 2)),
-           Conv3d_bn(64, 32, dropout, use_bn),
-           MaxPool3d((1, 2, 2)),
-           Conv3d_bn(32, 32, dropout, use_bn))
+           Conv2d_bn(3, 32, dropout, use_bn),
+           Conv2d_bn(32, 64, dropout, use_bn),
+           MaxPool2d((2, 2)),
+           Conv2d_bn(64, 32, dropout, use_bn),
+           MaxPool2d((2, 2)),
+           Conv2d_bn(32, 32, dropout, use_bn))
         self.dense_layer = Dense_bn(self.in_dense, out_shape, dropout, use_bn)
     def forward(self, x):
         x = self.conv_layers(x)
-        x = x.permute(0, 2, 1, 3, 4)
-        x = x.flatten(2, -1)
+        x = x.permute(1, 0, 2, 3)
+        x = x.flatten(1, -1)
         x = self.dense_layer(x)
         return x
 
@@ -321,35 +323,58 @@ class MILGene(Module):
                 'conan': Conan, 
                 '1s': model1S, 
                 'sa': SelfAttentionMIL}     
-    feature_extractor = {1: Identity, 
-                         0: FeatureExtractor}
     def __init__(self, args):
+        feature_extractor = {1: Identity, 
+                             0: self._get_features_net}
         super(MILGene, self).__init__()
-        self.features_instances = self.feature_extractor[args.embedded](in_shape=args.in_shape,
-                                                  out_shape=args.feature_depth,
-                                                  dropout=args.dropout,
-                                                  use_bn=False)
+        self.args = args
+        self.features_instances = feature_extractor[args.embedded](args)
         self.mil = self.models[args.model_name](args)
+
     def forward(self, x):
+        batch_size, nb_tiles = x.shape[0], x.shape[1]
+        x = self._preprocess(x, self.args)
         x = self.features_instances(x)
+        x = x.view(batch_size, nb_tiles, self.args.feature_depth)
         x = self.mil(x)
         return x
+
+    def _get_features_net(self, args):
+        if args.features_net == 'resnet':
+            net = torchvision.models.resnet18(pretrained=True)
+            net.fc = Identity()
+        elif args.features_net == 'adm':
+            net = FeatureExtractor(args.in_shape, args.feature_depth, args.dropout, False)
+        return net
+
+    def _preprocess(self, x, args):
+        if args.embedded:
+            x = x
+        else:
+            x = x.view(-1, 3, args.in_shape, args.in_shape)
+        return x 
+
 
 if __name__ == '__main__':
     import numpy as np
     from argparse import Namespace
     #slide = np.load('/Users/trislaz/Documents/cbio/data/tcga/tcga_all_encoded/mat_pca/image_tcga_0.npy')
-    slide = torch.ones((14, 110, 256))/10
-    slide = torch.FloatTensor(slide)
-    args = {'feature_depth': 256,
+    batch_size = 5
+    nb_tiles = 2
+    slide = torch.rand((batch_size, nb_tiles, 3, 256, 256))
+    res = torchvision.models.resnet18()
+    args = {'feature_depth': 512,
             'dropout':0,
-            'in_shape': 32,
-            'model_name': 'sa',
+            'in_shape': 256,
+            'model_name': 'attentionmil',
             'constant_size':True,
-            'batch_size': 16
+            'features_net': 'resnet',
+            'batch_size': batch_size,
+            'nb_tiles' : nb_tiles,
+            'embedded': 0
             }
     args = Namespace(**args)
-    model = SelfAttentionMIL(args)
-    model.eval()
-    output = model(slide)
-    classif_score = output
+    model = MILGene(args)
+    #model.eval()
+    #output = model(slide)
+    model(slide)

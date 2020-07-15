@@ -58,25 +58,20 @@ def mean_dataframe(df):
         mean dataframe over repeats and then over test sets.
         mean of metrics for each config.
     """
-    configs = set(df['config'])
     tests = set(df['test'])
     rows_r = []
     rows_rt = []
-    for c in configs:
-        dfc = df[df['config'] == c]
-        rows_t = []
-        for t in tests:
-            dft = dfc[dfc['test'] == t]
-            dft_m = dft.mean(axis=0)
-            dft_m = dft_m.drop('repeat').to_frame().transpose()
-            rows_r.append(dft_m)
-            rows_t.append(dft_m)
-        df_mean_t = pd.concat(rows_t, ignore_index=True)
-        df_mean_t = df_mean_t.drop('test', axis=1)
-        rows_rt.append(df_mean_t.mean(axis=0).to_frame().transpose())
+    rows_t = []
+    for t in tests:
+        dft = df[df['test'] == t]
+        dft_m = dft.mean(axis=0)
+        dft_m = dft_m.drop('repeat').to_frame().transpose()
+        rows_r.append(dft_m)
+        rows_t.append(dft_m)
+    df_mean_t = pd.concat(rows_t, ignore_index=True)
+    df_mean_t = df_mean_t.drop('test', axis=1)
     df_mean_r = pd.concat(rows_r, ignore_index=True)
-    df_mean_rt = pd.concat(rows_rt, ignore_index=True)
-    return df_mean_r, df_mean_rt
+    return df_mean_r, df_mean_t
 
 def select_best_repeat(df,ref_metric, path):
     """Selects, for a given config (best_config), the models
@@ -136,7 +131,7 @@ def main():
     ref_metric = args_m.ref_metric # extract the reference from one of the models (last one)
     df = pd.DataFrame(rows)
     df_mean_r, df_mean_rt = mean_dataframe(df)
-    models_params = select_best_repeat(df=df, best_config=best_config, ref_metric=ref_metric, path=args.path)
+    models_params = select_best_repeat(df=df, ref_metric=ref_metric, path=args.path)
     for param in models_params:
         copy_best_to_root(args.path, param)
     df.to_csv('all_results.csv', index=False)

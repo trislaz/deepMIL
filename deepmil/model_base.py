@@ -1,4 +1,3 @@
-#%%
 import torch 
 import torchvision
 from abc import ABC, abstractmethod
@@ -61,7 +60,7 @@ class Model(ABC):
         """Can be called after having define the optimizers (list-like)
         """
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau
-        self.schedulers = [scheduler(optimizer=o, patience=10) for o in self.optimizers]
+        self.schedulers = [scheduler(optimizer=o, patience=20) for o in self.optimizers]
 
     def update_learning_rate(self, metric):
         for sch in self.schedulers:
@@ -107,7 +106,7 @@ class EarlyStopping:
         #####################
         ## No progression ###
         #####################
-        elif self.loss_min + 1e-6 < loss :
+        elif self.loss_min <= loss :
             self.counter += 1
             self.is_best = False
             if self.counter < self.patience:

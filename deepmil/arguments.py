@@ -28,6 +28,10 @@ def get_arguments(train=True, config=None):
                         type=int,
                         default=1,
                         help='If 1, use the already embedded WSI, else, takes image_tiles as input')
+    parser.add_argument('--features_net', 
+                        type=str, 
+                        default='adm', 
+                        help='type of feature extractor. Possible: adm | resnet ')
     parser.add_argument("--feature_depth",
                         type=int,
                         default=256,
@@ -92,6 +96,8 @@ def get_arguments(train=True, config=None):
     args.train = train
     if args.patience == 0:
         args.patience = args.epochs
+    if args.features_net == 'resnet':
+        args.feature_depth = 512
     args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if args.nb_tiles == 0:
         args.constant_size = False

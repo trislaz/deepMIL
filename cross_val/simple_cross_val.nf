@@ -1,34 +1,34 @@
 #!/usr/bin/env nextflow
 
-model_name = Channel.from('conan')
-resolution = Channel.from(1, 2) .into{ resolution1; resolution2; resolution3}
-model_res = model_name .combine (resolution1)
-dataset = 'tcga_all'
+model_name = Channel.from('attentionmil') .into{model_name_1; model_name_2}
+resolution = Channel.from(1) .into{ resolution1; resolution2; resolution3}
+dataset = 'tcga_config_default'
+with_test = 1
 
 // Useful Path
-table_data = '/mnt/data4/tlazard/data/tcga/tcga_all/tcga_balanced_lst.csv'
-config = file('/mnt/data4/tlazard/projet/deepMIL/config_default.yaml')
+config_chan = Channel.from('/mnt/data4/tlazard/projets/deepMIL/cross_val/handcrafted_configs/config_default_embedded.yaml')
 
+res_conf = resolution1 .merge (config_chan) .into{res_conf1; res_conf2}
+model_res_conf = model_name_1. combine(res_conf1)
 // Training parameters
-target_name = 'LST_status'
-nb_para = 50
-test_fold = 5
-repetition = 5
+target_name = 'LST_Status'
+test_fold = 5 
+repetition = 20 
 epochs = 100
 
 process Train {
     publishDir "${output_folder}", overwrite: true, pattern: "*.pt.tar", mode: 'copy'
-    publishDir "${output_folder}", overwrite: true, pattern: "*.yaml", mode: 'copy'
+    publishDir "${output_folder}", overwrite: true, pattern: "*eventsevents.*", mode: 'copy'
 
 	queue "gpu-cbio"
     clusterOptions "--gres=gpu:1"
     maxForks 10
-    memory '30GB'
+    memory '40GB'
 	cpus 6
  
 
     input:
-    set val(model), val(res) from model_res
+    set val(model), val(res), val(config) from model_res_conf
     each test from 0..test_fold-1
     each repeat from 1..repetition
 
@@ -36,17 +36,33 @@ process Train {
     set val(model), file('*.pt.tar') into results
 
     script:
-    py = file('../train/train.py')
+    py = file('../scripts/train.py')
+	root_expe = file("./outputs/${dataset}/${model}/${res}/")
     output_folder = file("./outputs/${dataset}/${model}/${res}/test_${test}/${repeat}/")
-    config.copyTo(file("./outputs/${dataset}/${model}/${res}/"))
     """
+    export EVENTS_TF_FOLDER=${output_folder}
 	module load cuda10.0
     python $py --config ${config} --test_fold $test --epochs $epochs --repeat $repeat
     """
 }
 
 results .groupTuple()
-        .set {all_done}
+        .into {all_done1; all_done2}
+
+process copyconfig {
+	input: 
+	val _ from all_done1
+    set val(r), val(config) from res_conf2
+	each model from model_name_2
+
+	output:
+
+	script:
+	output_folder = file("./outputs/${dataset}/${model}/${r}/")
+	"""
+	cp ${config} ${output_folder}
+	"""
+}
 
 // Exctracts the output files, the best parameters and best model.
 // needs to write this for each res/model_name. 
@@ -56,40 +72,42 @@ process WritesResultFile {
     publishDir "${output_folder}", overwrite: true, pattern: "*.csv", mode:'copy'
 
     input:
-    set val(model), _ from all_done 
+    set val(model), _ from all_done2 
     each res from resolution2
 
     output:
     file('*.csv') into table_results
     set val(model), val("$res"), file('*.pt.tar') into best_test_models
-	file("*.yaml")
 
     script:
     output_folder = file("./outputs/${dataset}/${model}/${res}/")
-    py = file('./writes_results.py')
+    py = file('../scripts/writes_results_cross_val.py')
     """
     python $py --path ${output_folder} 
     """
 }
 
-process TestResults {
-    publishDir "${output_folder}", overwrite:true, pattern:"*.csv", mode:'copy'
-	queue "gpu-cbio"
-	clusterOptions "--gres=gpu:1"
-	memory '30GB'
+if (with_test == 1){
+    process TestResults {
+        publishDir "${output_folder}", overwrite:true, pattern:"*.csv", mode:'copy'
+    	queue "gpu-cbio"
+    	clusterOptions "--gres=gpu:1"
+    	memory '40GB'
+		cpus 7
 
 
-    input:
-    set model, res, _ from best_test_models
+        input:
+        set model, res, _ from best_test_models
 
-    output:
-    file('*.csv') into test_results
+        output:
+        file('*.csv') into test_results
 
-    script:
-    output_folder = file("./outputs/${dataset}/${model}/${res}")
-    py = file('./writes_final_results.py')
-    """
-    module load cuda10.0
-    python $py --path ${output_folder}
-    """
+        script:
+        output_folder = file("./outputs/${dataset}/${model}/${res}")
+        py = file('../scripts/writes_final_results.py')
+        """
+        module load cuda10.0
+        python $py --path ${output_folder}
+        """
+    }
 }

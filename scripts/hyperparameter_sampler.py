@@ -12,14 +12,14 @@ class Sampler:
     parameters_per_model = {"attentionmil": ['width_fe'],
                         "1s": ['n_clusters', 'hidden_fcn'],
                         "conan":['hidden1', 'hidden_fcn']}
-    global_parameters = ["lr", "batch_size", "nb_tiles", "dropout"]
-    res_to_tiles = {1: (100, 4000), 2: (10, 400)} #donne la fourchette du nb de tuiles pour chaque rés
+    global_parameters = ["lr", "batch_size", "nb_tiles", "dropout", "feature_depth"]
+    res_to_tiles = {1: (100, 1000), 2: (10, 100)} #donne la fourchette du nb de tuiles pour chaque rés
 
     def __init__(self, args):
         self.res = args.res
         self.params = vars(args)
         self.table_data = args.table_data
-        self.path_tiles = args.path_tiles
+        self.wsi = args.wsi
         self.model_name = args.model_name
         self.p = 0.2 # in nb_tiles
         self.parameters_name = self.parameters_per_model[args.model_name] + self.global_parameters
@@ -35,6 +35,11 @@ class Sampler:
         """
         s = np.random.uniform(high, low) # s for sampler
         s = 10 ** (-s)
+        return s
+
+    @staticmethod
+    def feature_depth_sampler():
+        s = np.random.randint(256, 1024)
         return s
 
     @staticmethod
@@ -61,7 +66,8 @@ class Sampler:
     def batch_size_sampler():
         """Uniformly samples the batch_size
         """
-        s = np.random.randint(1, 16)
+        #s = np.random.randint(1, 16)
+        s = 16
         return s
 
     @staticmethod
@@ -75,7 +81,7 @@ class Sampler:
             s = np.random.randint(low, high)
         else:
             take_all_tiles = np.random.binomial(1, self.p)
-            if take_all_tiles:
+            if False:#take_all_tiles:
                 s = 0
             else:
                 s = np.random.randint(low, high)
@@ -90,7 +96,7 @@ class Sampler:
 def main():
     parser = ArgumentParser()
     parser.add_argument("--model_name", type=str)
-    parser.add_argument("--path_tiles", help="path to the encoded wsi")
+    parser.add_argument("--wsi", help="path to the encoded wsi")
     parser.add_argument("--table_data", help='path to the table data')
     parser.add_argument("--id", help="ID of the config", type=int)
     parser.add_argument("--res", type=int, help="resolution of the wsi")

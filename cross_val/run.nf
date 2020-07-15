@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-model_name = Channel.from('conan')
+model_name = Channel.from('attentionmil', 'conan')
 resolution = Channel.from(1, 2) .into{ resolution1; resolution2; resolution3}
 model_res = model_name .combine (resolution1)
 dataset = 'tcga_all'
@@ -9,7 +9,7 @@ target_name = 'LST_status'
 nb_para = 50
 test_fold = 5
 repetition = 5
-epochs = 100
+epochs = 60
 
 
 //
@@ -54,7 +54,7 @@ process Train {
 	queue "gpu-cbio"
     clusterOptions "--gres=gpu:1"
     maxForks 10
-    memory '30GB'
+    memory '35GB'
 	cpus 6
  
 
@@ -67,7 +67,7 @@ process Train {
     set val(model), file('*.pt.tar') into results
 
     script:
-    py = file('../train/train.py')
+    py = file('../scripts/train.py')
     output_folder = file("./outputs/${dataset}/${model}/${res}/${config.baseName}/test_${test}/${repeat}/")
     """
 	module load cuda10.0
@@ -97,7 +97,7 @@ process WritesResultFile {
 
     script:
     output_folder = file("./outputs/${dataset}/${model}/${res}/")
-    py = file('./writes_results.py')
+    py = file('../scripts/writes_results.py')
     """
     python $py --path ${output_folder} 
     """
@@ -118,7 +118,7 @@ process TestResults {
 
     script:
     output_folder = file("./outputs/${dataset}/${model}/${res}")
-    py = file('./writes_final_results.py')
+    py = file('../scripts/writes_final_results.py')
     """
     module load cuda10.0
     python $py --path ${output_folder}

@@ -8,8 +8,11 @@ cross_val/outputs/
 cross_val/.nextflow/
 cross_val/work/
 labels_tcga_tnbc_strat.csv
-
+events.out.*
+cross_val/train/
 cross_val/.nextflow.log*
+*.yaml
+cross_val/*.yaml
 
 model.pt.tar
 model_best.pt.tar
@@ -38,3 +41,10 @@ runs/Jun11_11-40-50_trite.local/events.out.tfevents.1591868450.trite.local
 runs/Jun11_11-40-50_trite.local/mean_loss/mean_train_loss/events.out.tfevents.1591868453.trite.local
 runs/Jun11_11-40-50_trite.local/mean_loss/mean_val_loss/events.out.tfevents.1591868453.trite.local
 cross_val/essai.nf
+deepmil/analyse_res.ipynb
+deepmil/.ipynb_checkpoints/analyse_res-checkpoint.ipynb
+deepmil/.ipynb_checkpoints/Untitled-checkpoint.ipynb
+deepmil/deepmil_trela.egg-info/dependency_links.txt
+deepmil/deepmil_trela.egg-info/PKG-INFO
+deepmil/deepmil_trela.egg-info/SOURCES.txt
+deepmil/deepmil_trela.egg-info/top_level.txt

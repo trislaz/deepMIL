@@ -6,8 +6,8 @@ from torch.optim import Adam
 import torch
 import numpy as np
 from sklearn import metrics
-from networks import AttentionMILFeatures, model1S, Conan, MILGene
-from model_base import Model
+from .networks import AttentionMILFeatures, model1S, Conan, MILGene
+from .model_base import Model
 # For the sklearn warnings
 
 ## Use Cross_entropy loss nn.CrossEntropyLoss
@@ -25,6 +25,7 @@ class DeepMIL(Model):
     """
     Class implementing a Deep MIL framwork. different Models a define upstairs
     """
+
     def __init__(self, args):
         super(DeepMIL, self).__init__(args)
         self.results_val = {'scores': [],
@@ -95,7 +96,7 @@ class DeepMIL(Model):
         x = x.to(self.args.device)
         scores = self._forward_no_grad(x)
         y = y.to('cpu')
-        loss = self.criterion(scores, y)       
+        loss = self.criterion(scores, y.float())       
         self.results_val['scores'] += list(scores.numpy())
         self.results_val['y_true'] += list(y.cpu().numpy())
         return loss.detach().cpu().item()
@@ -110,7 +111,7 @@ class DeepMIL(Model):
             input_batch = input_batch.to(self.args.device)
             target_batch = target_batch.to(self.args.device)
             output = self.forward(input_batch)
-            loss = self.criterion(output, target_batch)
+            loss = self.criterion(output, target_batch.float())
             loss.backward()
 
         else: # We have to process a batch as a list of tensors (of different sizes)
@@ -119,7 +120,7 @@ class DeepMIL(Model):
                 im = im.to(self.args.device)
                 target = target_batch[o].to(self.args.device)
                 output = self.forward(im)
-                loss += self.criterion(output, target)
+                loss += self.criterion(output, target.float())
             loss = loss/len(input_batch)
             loss.backward()
 

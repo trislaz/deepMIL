@@ -9,7 +9,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 import os
 
 class FolderWSI(Dataset):
-    def __init__(self, args, transform=None, predict=False):
+    def __init__(self, args, train, transform=None, predict=False):
         """Instantiate a WSI-tiles dataset.
         args must contain :
             * target_name, str, name of the target
@@ -37,6 +37,7 @@ class FolderWSI(Dataset):
         """
         super(FolderWSI, self).__init__()
         self.args = args
+        self.train = train
         self.table_data = pd.read_csv(args.table_data)
         self.predict = predict
         self.target_name = args.target_name
@@ -103,12 +104,17 @@ class FolderWSI(Dataset):
         impath = self.images[wsi]
         np.random.shuffle(impath)
         instances = []
+        if self.train:
+            nb_tiles = self.nb_tiles
+        else:
+            nb_tiles = min(280, len(impath))
         for i in range(self.nb_tiles):
             instance = Image.open(impath[i])
             if self.transform is not None:
                 instance = self.transform(instance)
             instances.append(instance)
         instances = torch.stack(instances)
+        instances = instances.permute(1, 0, 2, 3)
         return instances, self.target_dict[wsi]
 
 class EmbededWSI(Dataset):
@@ -124,7 +130,7 @@ class EmbededWSI(Dataset):
         * a $args.target_name column, of course
         * a test columns, stating the test_fold number of each image.
     """
-    def __init__(self, args, predict=False):
+    def __init__(self, args, train, predict=False):
         """Initialises the MIL model.
         
         Parameters
@@ -143,6 +149,7 @@ class EmbededWSI(Dataset):
         """
         super(EmbededWSI, self).__init__()
         self.args = args
+        self.train = train
         self.predict = predict
         self.table_data = pd.read_csv(args.table_data)
         self.files, self.target_dict = self._make_db()
@@ -215,7 +222,7 @@ class EmbededWSI(Dataset):
         np.array
             selected tiles 
         """
-        if self.constant_size:
+        if self.constant_size & self.train:
             indexes = np.random.randint(mat.shape[0], size=self.args.nb_tiles)
             mat = mat[indexes, :]
         return mat
@@ -229,7 +236,7 @@ class Dataset_handler:
     def __init__(self, args, predict=False):
         self.args = args
         self.predict = predict
-        self.num_workers = 16
+        self.num_workers = 16 
         self.embedded = args.embedded
         self.dataset_train = self._get_dataset(train=True)
         self.dataset_val = self._get_dataset(train=False)
@@ -247,9 +254,9 @@ class Dataset_handler:
         
     def _get_dataset(self, train):
         if self.embedded:
-            dataset = EmbededWSI(self.args, predict=self.predict)
+            dataset = EmbededWSI(self.args, train=train, predict=self.predict)
         else:
-            dataset = FolderWSI(self.args, transform=get_transform(train=train, color_aug=self.args.color_aug))
+            dataset = FolderWSI(self.args, train=train, transform=get_transform(train=train, color_aug=self.args.color_aug))
         return dataset
     
     def _get_sampler(self, dataset):
@@ -268,14 +275,18 @@ def get_transform(train, color_aug=False):
                 transforms.RandomVerticalFlip(p=0.5),
                 transforms.RandomApply([transforms.ColorJitter(0.3, 0.3, 0.3)], p=0.5),
                 transforms.RandomGrayscale(p=0.1),
-                transforms.ToTensor()])
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
         else:
             transform = transforms.Compose([
                 transforms.RandomHorizontalFlip(p=0.5),
                 transforms.RandomVerticalFlip(p=0.5),
-                transforms.ToTensor()])
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     else:
-        transform = transforms.ToTensor()
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     return transform
 
 if __name__ == '__main__':

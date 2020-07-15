@@ -1,6 +1,6 @@
-from arguments import get_arguments
-from dataloader import Dataset_handler
-from models import DeepMIL
+from deepmil-trela.arguments import get_arguments
+from deepmil-trela.dataloader import Dataset_handler
+from deepmil-trela.models import DeepMIL
 import numpy as np
 
 # For the sklearn warnings
@@ -57,6 +57,3 @@ def main():
             break
     model.writer.close()
 
-if __name__ == '__main__':
-    warnings.filterwarnings('always')
-    main()
