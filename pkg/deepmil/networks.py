@@ -5,8 +5,8 @@ use of pytorch.
 import functools
 from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity, MaxPool2d, Conv3d,
                       Sigmoid, Conv1d, Conv2d, ReLU, Dropout, BatchNorm1d, BatchNorm2d, InstanceNorm1d, 
-                      MaxPool3d, functional)
-import torch
+                      MaxPool3d, functional, LayerNorm)
+from torch.nn.modules import TransformerEncoder, TransformerEncoderLayer
 from torchvision import transforms
 import torchvision
 
@@ -318,11 +318,24 @@ class SelfAttentionMIL(Module):
         x = x.squeeze(-1)
         return x
 
+class TransformerMIL(Module):
+    def __init__(self, args):
+        super(TransformerMIL, self).__init__()
+        encoder_layer = TransformerEncoderLayer(d_model=args.feature_depth, nhead=8, dim_feedforward=2048, dropout=args.dropout, activation="relu")
+        encoder_norm = LayerNorm(args.feature_depth)
+        self.attention = TransformerEncoder(encoder_layer, 6, encoder_norm)
+        self.mil = AttentionMILFeatures(args)
+    def forward(self, x):
+        x = self.attention(x)
+        x = self.mil(x)
+        return x
+
 class MILGene(Module):
     models = {'attentionmil': AttentionMILFeatures, 
                 'conan': Conan, 
                 '1s': model1S, 
-                'sa': SelfAttentionMIL}     
+                'sa': SelfAttentionMIL,
+                'transformermil': TransformerMIL}     
     def __init__(self, args):
         feature_extractor = {1: Identity, 
                              0: self._get_features_net}
@@ -357,13 +370,15 @@ class MILGene(Module):
 
 if __name__ == '__main__':
     import numpy as np
+    import torch
     from argparse import Namespace
     #slide = np.load('/Users/trislaz/Documents/cbio/data/tcga/tcga_all_encoded/mat_pca/image_tcga_0.npy')
-    batch_size = 5
-    nb_tiles = 2
-    slide = torch.rand((batch_size, nb_tiles, 3, 256, 256))
+    batch_size = 16
+    nb_tiles = 100
+    feature_depth = 512
+    slide = torch.rand((batch_size, nb_tiles, feature_depth))
     res = torchvision.models.resnet18()
-    args = {'feature_depth': 512,
+    args = {'feature_depth': feature_depth,
             'dropout':0,
             'in_shape': 256,
             'model_name': 'attentionmil',
@@ -371,10 +386,10 @@ if __name__ == '__main__':
             'features_net': 'resnet',
             'batch_size': batch_size,
             'nb_tiles' : nb_tiles,
-            'embedded': 0
+            'embedded': 1
             }
     args = Namespace(**args)
-    model = MILGene(args)
+    model = TransformerMIL(args)
     #model.eval()
     #output = model(slide)
     model(slide)
