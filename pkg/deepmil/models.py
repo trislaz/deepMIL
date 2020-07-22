@@ -40,7 +40,7 @@ class DeepMIL(Model):
         self.get_schedulers()
 
     def _get_network(self):
-        net = MILGene(self.args)        
+        net = MILGene(self.args)       
         net = net.to(self.args.device)
         return net
     
@@ -51,8 +51,7 @@ class DeepMIL(Model):
         return out
 
     def _keep_best_metrics(self, metrics):
-        factor = {'accuracy': -1, 'loss': 1}
-        factor = factor[self.ref_metric]
+        factor = self.args.sgn_metric 
         if self.best_ref_metric is None:
             self.best_ref_metric = metrics[self.ref_metric]
             self.best_metrics = metrics
@@ -65,9 +64,9 @@ class DeepMIL(Model):
         val_scores = np.array(self.results_val['scores'])
         val_y = np.array(self.results_val['y_true'])
         val_metrics = self._compute_metrics(scores=val_scores, y_true=val_y)
+        val_metrics['mean_train_loss'] = self.mean_train_loss
+        val_metrics['mean_val_loss'] = self.mean_val_loss
         self._keep_best_metrics(val_metrics)
-        val_metrics['mean_loss'] = {'mean_train_loss': self.mean_train_loss,
-                                    'mean_val_loss': self.mean_val_loss}
 
         # Re Initialize val_results for next validation
         self.results_val['scores'] = []

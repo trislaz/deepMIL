@@ -7,7 +7,7 @@ import torch
 from torch import load
 from .arguments import get_arguments
 from .models import DeepMIL
-from .dataloader import make_loaders, Dataset_handler
+from .dataloader import Dataset_handler
 from collections import MutableMapping
 
 def convert_flatten(d, parent_key='', sep='_'):

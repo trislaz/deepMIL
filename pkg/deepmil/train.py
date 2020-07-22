@@ -1,11 +1,36 @@
-from deepmil-trela.arguments import get_arguments
-from deepmil-trela.dataloader import Dataset_handler
-from deepmil-trela.models import DeepMIL
+from .arguments import get_arguments
+from .dataloader import Dataset_handler
+from .models import DeepMIL
 import numpy as np
 
 # For the sklearn warnings
 import warnings
 warnings.filterwarnings('always')
+
+# timer.py
+import time
+class TimerError(Exception):
+
+    """A custom exception used to report errors in use of Timer class"""
+
+
+class Timer:
+    def __init__(self):
+        self._start_time = None
+
+    def start(self):
+        """Start a new timer"""
+        if self._start_time is not None:
+            raise TimerError(f"Timer is running. Use .stop() to stop it")
+        self._start_time = time.perf_counter()
+
+    def stop(self):
+        """Stop the timer, and report the elapsed time"""
+        if self._start_time is None:
+            raise TimerError(f"Timer is not running. Use .start() to start it")
+        elapsed_time = time.perf_counter() - self._start_time
+        self._start_time = None
+        print(f"Elapsed time: {elapsed_time:0.4f} seconds")
 
 def writes_metrics(writer, to_write, epoch):
     for key in to_write:
@@ -22,7 +47,6 @@ def train(model, dataloader):
         model.counter["batch"] += 1
         model.counter['epoch'] += epobatch
         loss = model.optimize_parameters(input_batch, target_batch)
-        model.writer.add_scalar("Training_batch_loss", loss, model.counter['epoch'])
         mean_loss.append(loss)
     model.mean_train_loss = np.mean(mean_loss)
     print('train_loss: {}'.format(np.mean(mean_loss)))
@@ -40,9 +64,10 @@ def val(model, dataloader):
     state = model.make_state()
     print('mean val loss {}'.format(np.mean(mean_loss)))
     model.update_learning_rate(model.mean_val_loss)
-    model.early_stopping(-to_write['accuracy'], state)
+    model.early_stopping(model.args.sgn_metric * to_write[model.args.ref_metric], state)
 
 def main():
+    t = Timer()
     args = get_arguments(train=True)
     model = DeepMIL(args=args)
     model.get_summary_writer()
@@ -50,9 +75,11 @@ def main():
     dataloader_train, dataloader_val = data.get_loader(training=True)
     model.target_correspondance = dataloader_train.dataset.target_correspondance # Will be useful when writing the results. TODO change that.
     while model.counter['epoch'] < args.epochs:
+        t.start()
         print("Epochs {}".format(round(model.counter['epoch'])))
         train(model=model, dataloader=dataloader_train)
         val(model=model, dataloader=dataloader_val)
+        t.stop()
         if model.early_stopping.early_stop:
             break
     model.writer.close()

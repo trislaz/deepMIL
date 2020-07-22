@@ -13,7 +13,7 @@ class Sampler:
                         "1s": ['n_clusters', 'hidden_fcn'],
                         "conan":['hidden1', 'hidden_fcn']}
     global_parameters = ["lr", "batch_size", "nb_tiles", "dropout", "feature_depth"]
-    res_to_tiles = {1: (100, 1000), 2: (10, 100)} #donne la fourchette du nb de tuiles pour chaque rés
+    res_to_tiles = {1: (10, 300), 2: (10, 100)} #donne la fourchette du nb de tuiles pour chaque rés
 
     def __init__(self, args):
         self.res = args.res
@@ -66,9 +66,8 @@ class Sampler:
     def batch_size_sampler():
         """Uniformly samples the batch_size
         """
-        #s = np.random.randint(1, 16)
-        s = 16
-        return s
+        s = np.random.choice([16, 32, 64])
+        return int(s)
 
     @staticmethod
     def dropout_sampler():

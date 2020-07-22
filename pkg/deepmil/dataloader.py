@@ -236,7 +236,7 @@ class Dataset_handler:
     def __init__(self, args, predict=False):
         self.args = args
         self.predict = predict
-        self.num_workers = 16 
+        self.num_workers = args.num_workers 
         self.embedded = args.embedded
         self.dataset_train = self._get_dataset(train=True)
         self.dataset_val = self._get_dataset(train=False)

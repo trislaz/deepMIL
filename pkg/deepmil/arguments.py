@@ -55,6 +55,10 @@ def get_arguments(train=True, config=None):
                         type=int,
                         default=1,
                         help="Batch Size = how many WSI in a batch")
+    parser.add_argument("--num_workers",
+                        type=int,
+                        default=16,
+                        help="number of parallel threads for batch processing")
     parser.add_argument('--nb_tiles',
                         type=int,
                         default=0,
@@ -103,5 +107,12 @@ def get_arguments(train=True, config=None):
         args.constant_size = False
     else:
         args.constant_size = True
+
+    # Sgn_metric used to orient the early stopping and writing process.
+    if args.ref_metric == 'loss':
+        args.ref_metric = 'mean_val_loss'
+        args.sgn_metric = 1
+    else:
+        args.sgn_metric = -1
     return args
 
