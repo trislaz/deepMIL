@@ -1,5 +1,10 @@
 # Multiple Instance Learning on WSI
 
+## Installer le package
+Il suffit de `cd pkg` puis d'installer avec la commande `pip install -e ./`.
+
+## Lancer des apprentissage de multiple instance learning
+
 Les input nécessaires aux processus de ce package sont : 
 * Le dataset de WSI, déja tuilé et encodé (une WSI est alors un array numpy "name_slide.npy")
 * Le "table_data", un fichier csv (séparateur = ",") qui contient forcément les colonnes :
@@ -52,7 +57,7 @@ On y trouvera différentes choses :
 * ./configs/ contient tous les fichiers de configuration
 * ./config_n sont les dossiers dans lesquels contiennent les modèles, les sorties tensroboard etc.. de tous les modèles de la *config_n*
 
-**Au total, `nb_para * test_fold * repetition`seront lancés !**
+**Au total, `nb_para * test_fold * repetition` seront lancés !**
 
 2. Lancer une simple cross_val.
 
@@ -64,4 +69,43 @@ Deux paramètre sont en sus :
 * `expe` précise le nom de l'experience, juste pour le stockage des outputs
 On peut le lancer de la même manière que `run.nf`.
 
-Les sorties se trouvent dans `./cross_val/`
+Les sorties se trouvent dans `./cross_val/outputs/dataset/expe/model_name/resolution/` On y trouve les mêmes fichiers que pour le processus de recerche `1.`
+
+3. Lancer une prédiction -ne peut se faire que sur le dataset initial pour l'instant-
+
+```
+python ./scripts/predict.py --config /path/to/config --model_path /path/to/model.pt.tar
+```
+
+4. Lancer un seul entrainement, avec des paramètres donnés
+
+```
+python ./scripts/train.py --config /path/to/config.yaml 
+```
+
+On peut aussi rajouter des paramètres à la main, plutot que de les rajouter dans config : 
+
+```
+python ./scripts/train.py --conig /path/to/config.yaml` --patience 15
+```
+
+Des infos sur les paramètres disponibles peuvent être obtenues en demain l'aide : 
+
+```
+python ./scripts/train.py --help
+```
+
+## Visualiser les entrainements
+
+Il est possible de visualiser en temps réel un ou plusieurs apprentissage.
+2 cas sont envisageables :
+1. Les calculs tournent sur votre machine. Il faut installer tensorboardx (`conda install tensorboardx` si vous ne l'avez pas) puis le lancer : 
+```
+tensorboard --logdir /path/of/the/experiment_outputs --port=8008
+```
+Ouvrez ensuite votre navigateur et entrez dans la barre d'adresse `localhost:8008/`. J'utilise ici le port 8008 mais vous pouvez utiliser celui de votre choix.
+2. Les calculs tournent sur une machine distante. Il faut alors ouvrir un tunnel ssh entre un des ports de votre machine et cette machine distante : 
+```
+ssh user@machine_distance -L 8008:localhost:8008
+```
+vous pouvez ensuite, sur votre machine distante, lancer tensorboard comme dit dans le point un sur le port 8008 (qui est maintenant retransmis sur le port 8008 de votre machine locale), et ouvrir votre navigateur à l'adresse `localhost:8008/`

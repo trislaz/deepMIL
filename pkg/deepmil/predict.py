@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import torch
+import pandas as pd
 from torch import load
 import os
 from .arguments import get_arguments
@@ -34,4 +35,4 @@ def load_model(config, model_path=None, dataset=None, table_data=None):
         test = df[df['ID'] == id_im]['test'].item()
         success = y_hat[1].item() == y.item()
         results.append({'prediction': y_hat[1].item(), 'gt': y.item(), 'index':o, 'subtype':subtype, 'ID':id_im, 'test':test, 'success': success})
-    return results, dataloader
+    return pd.DataFrame(results)
