@@ -249,7 +249,7 @@ class Dataset_handler:
             dataloader_val = DataLoader(dataset=self.dataset_val, batch_size=1, sampler=self.val_sampler, num_workers=self.num_workers)
             dataloaders = (dataloader_train, dataloader_val) 
         else: # Testing on the whole dataset
-            dataloaders = DataLoader(dataset=self.dataset_train, batch_size=1, num_workers=self.num_workers)
+            dataloaders = DataLoader(dataset=self.dataset_val, batch_size=1, num_workers=self.num_workers)
         return dataloaders
         
     def _get_dataset(self, train):
