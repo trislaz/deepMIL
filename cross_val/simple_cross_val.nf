@@ -2,16 +2,16 @@
 
 model_name = Channel.from('attentionmil') .into{model_name_1; model_name_2}
 resolution = Channel.from(1) .into{ resolution1; resolution2; resolution3}
-dataset = 'tcga_config_default'
+dataset = 'tcga_all'
+expe = 'random_pred'
 with_test = 1
-
+// PROCESS GIVE ME COMPLIMENTSS {input: give ME, output: SCHNITZELL}
 // Useful Path
-config_chan = Channel.from('/mnt/data4/tlazard/projets/deepMIL/cross_val/handcrafted_configs/config_default_embedded.yaml')
+config_chan = Channel.from('/mnt/data4/tlazard/projets/deepMIL/cross_val/handcrafted_configs/best_config_38.yaml')
 
 res_conf = resolution1 .merge (config_chan) .into{res_conf1; res_conf2}
 model_res_conf = model_name_1. combine(res_conf1)
 // Training parameters
-target_name = 'LST_Status'
 test_fold = 5 
 repetition = 20 
 epochs = 100
@@ -29,7 +29,7 @@ process Train {
 
     input:
     set val(model), val(res), val(config) from model_res_conf
-    each test from 0..test_fold-1
+    each test from 0..test_fold-3
     each repeat from 1..repetition
 
     output:
@@ -37,8 +37,8 @@ process Train {
 
     script:
     py = file('../scripts/train.py')
-	root_expe = file("./outputs/${dataset}/${model}/${res}/")
-    output_folder = file("./outputs/${dataset}/${model}/${res}/test_${test}/${repeat}/")
+    root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
+    output_folder = file("${root_expe}/test_${test}/${repeat}/")
     """
     export EVENTS_TF_FOLDER=${output_folder}
 	module load cuda10.0
@@ -52,13 +52,14 @@ results .groupTuple()
 process copyconfig {
 	input: 
 	val _ from all_done1
-    set val(r), val(config) from res_conf2
+    set val(res), val(config) from res_conf2
 	each model from model_name_2
 
 	output:
 
 	script:
-	output_folder = file("./outputs/${dataset}/${model}/${r}/")
+    root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
+	output_folder = root_expe
 	"""
 	cp ${config} ${output_folder}
 	"""
@@ -80,7 +81,8 @@ process WritesResultFile {
     set val(model), val("$res"), file('*.pt.tar') into best_test_models
 
     script:
-    output_folder = file("./outputs/${dataset}/${model}/${res}/")
+    root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
+    output_folder = root_expe
     py = file('../scripts/writes_results_cross_val.py')
     """
     python $py --path ${output_folder} 
@@ -103,7 +105,8 @@ if (with_test == 1){
         file('*.csv') into test_results
 
         script:
-        output_folder = file("./outputs/${dataset}/${model}/${res}")
+        root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
+        output_folder = root_expe
         py = file('../scripts/writes_final_results.py')
         """
         module load cuda10.0

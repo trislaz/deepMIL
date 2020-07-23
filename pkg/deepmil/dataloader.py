@@ -223,6 +223,9 @@ class EmbededWSI(Dataset):
             selected tiles 
         """
         if self.constant_size & self.train:
+            #step = mat.shape[0]//self.args.nb_tiles
+            #init = np.random.randint(0, step)
+            #indexes = np.array(np.arange(0, mat.shape[0] - step, step) + init)[:self.args.nb_tiles]
             indexes = np.random.randint(mat.shape[0], size=self.args.nb_tiles)
             mat = mat[indexes, :]
         return mat
@@ -249,7 +252,7 @@ class Dataset_handler:
             dataloader_val = DataLoader(dataset=self.dataset_val, batch_size=1, sampler=self.val_sampler, num_workers=self.num_workers)
             dataloaders = (dataloader_train, dataloader_val) 
         else: # Testing on the whole dataset
-            dataloaders = DataLoader(dataset=self.dataset_train, batch_size=1, num_workers=self.num_workers)
+            dataloaders = DataLoader(dataset=self.dataset_val, batch_size=1, num_workers=self.num_workers)
         return dataloaders
         
     def _get_dataset(self, train):
