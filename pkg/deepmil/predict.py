@@ -28,7 +28,6 @@ def load_model(config, model_path=None, dataset=None, table_data=None):
     results = []
     model.network.eval()
     for o, (x, y) in enumerate(dataloader):
-        x = x.unsqueeze(0)
         y_hat = model.predict(x)
         id_im = os.path.splitext(os.path.basename(dataloader.dataset.files[o]))[0] 
         subtype = 0#df[df['ID'] == id_im]['Subtype_NEW'].item()

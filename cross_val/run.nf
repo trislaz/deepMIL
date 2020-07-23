@@ -1,14 +1,14 @@
 #!/usr/bin/env nextflow
 
-model_name = Channel.from('attentionmil', 'conan')
-resolution = Channel.from(1, 2) .into{ resolution1; resolution2; resolution3}
+model_name = Channel.from('attentionmil')
+resolution = Channel.from(1) .into{ resolution1; resolution2; resolution3}
 model_res = model_name .combine (resolution1)
 dataset = 'tcga_all'
-table_data = '/mnt/data4/tlazard/data/tcga/tcga_all/tcga_balanced_lst.csv'
+table_data = '/mnt/data4/tlazard/data/tcga/tcga_all/tcga_balanced_lst_1.csv'
 target_name = 'LST_status'
-nb_para = 50
+nb_para = 200
 test_fold = 5
-repetition = 5
+repetition = 10
 epochs = 60
 
 
@@ -35,7 +35,7 @@ process SampleHyperparameter {
     script:
     wsi = "/mnt/data4/tlazard/AutomaticWSI/outputs/tcga_all_auto_mask/tiling/imagenet/${res}/mat_pca"
     output_folder = "./outputs/${dataset}/${model}/${res}/"
-    py = file("./hyperparameter_sampler.py")
+    py = file("../scripts/hyperparameter_sampler.py")
     """
     python $py --model_name ${model} \
                --wsi ${wsi} \
@@ -46,15 +46,16 @@ process SampleHyperparameter {
     """
 }
 
-// Trains the models for each (n, t, r)
+// Trains the models for each (n, t, r) clusterOptions "--gres=gpu:1"
 process Train {
     publishDir "${output_folder}", overwrite: true, pattern: "*.pt.tar", mode: 'copy'
     publishDir "${output_folder}", overwrite: true, pattern: "*.yaml", mode: 'copy'
+    publishDir "${output_folder}", overwrite: true, pattern: "*eventsevents.*", mode: 'copy'
 
 	queue "gpu-cbio"
-    clusterOptions "--gres=gpu:1"
-    maxForks 10
-    memory '35GB'
+	clusterOptions "--gres=gpu:1"
+	memory "35GB"
+	maxForks 12
 	cpus 6
  
 
@@ -70,6 +71,7 @@ process Train {
     py = file('../scripts/train.py')
     output_folder = file("./outputs/${dataset}/${model}/${res}/${config.baseName}/test_${test}/${repeat}/")
     """
+    export EVENTS_TF_FOLDER=${output_folder}
 	module load cuda10.0
     python $py --config ${config} --test_fold $test --epochs $epochs --repeat $repeat
     """

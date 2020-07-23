@@ -7,6 +7,7 @@ from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Iden
                       Sigmoid, Conv1d, Conv2d, ReLU, Dropout, BatchNorm1d, BatchNorm2d, InstanceNorm1d, 
                       MaxPool3d, functional, LayerNorm)
 from torch.nn.modules import TransformerEncoder, TransformerEncoderLayer
+import torch
 from torchvision import transforms
 import torchvision
 
@@ -323,7 +324,7 @@ class TransformerMIL(Module):
         super(TransformerMIL, self).__init__()
         encoder_layer = TransformerEncoderLayer(d_model=args.feature_depth, nhead=8, dim_feedforward=2048, dropout=args.dropout, activation="relu")
         encoder_norm = LayerNorm(args.feature_depth)
-        self.attention = TransformerEncoder(encoder_layer, 6, encoder_norm)
+        self.attention = TransformerEncoder(encoder_layer, 1, encoder_norm)
         self.mil = AttentionMILFeatures(args)
     def forward(self, x):
         x = self.attention(x)
@@ -381,7 +382,7 @@ if __name__ == '__main__':
     args = {'feature_depth': feature_depth,
             'dropout':0,
             'in_shape': 256,
-            'model_name': 'attentionmil',
+            'model_name': 'transformermil',
             'constant_size':True,
             'features_net': 'resnet',
             'batch_size': batch_size,
@@ -389,7 +390,7 @@ if __name__ == '__main__':
             'embedded': 1
             }
     args = Namespace(**args)
-    model = TransformerMIL(args)
+    model = MILGene(args)
     #model.eval()
     #output = model(slide)
     model(slide)

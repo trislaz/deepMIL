@@ -223,6 +223,9 @@ class EmbededWSI(Dataset):
             selected tiles 
         """
         if self.constant_size & self.train:
+            #step = mat.shape[0]//self.args.nb_tiles
+            #init = np.random.randint(0, step)
+            #indexes = np.array(np.arange(0, mat.shape[0] - step, step) + init)[:self.args.nb_tiles]
             indexes = np.random.randint(mat.shape[0], size=self.args.nb_tiles)
             mat = mat[indexes, :]
         return mat
