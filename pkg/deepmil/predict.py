@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import torch
+import pandas as pd
 from torch import load
 import os
 from .arguments import get_arguments
@@ -50,4 +51,4 @@ def load_model(config, model_path=None, dataset=None, table_data=None):
         results.append({'prediction': y_hat[1].item(), 'gt': y.item(), 'index':o,'success': success}.update(serie))
         if args.test_fold == serie['test']:
             confusion_dict = update_confusion(confu_dict = confusion_dict, y_hat=y_hat, y=y)
-    return results, confusion_dict
+    return pd.DataFrame(results), confusion_dict

@@ -42,7 +42,7 @@ def get_arguments(train=True, config=None):
     parser.add_argument('--model_name', 
                         type=str,
                         default='attentionmil', 
-                        help='name of the model used. Avail : attentionmil | 1s')
+                        help='name of the model used. Avail : attentionmil | 1s | transformermil | sa | conan')
     parser.add_argument("--patience", 
                         type=int,
                         default=0,

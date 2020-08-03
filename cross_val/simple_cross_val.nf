@@ -1,20 +1,21 @@
 #!/usr/bin/env nextflow
 
-model_name = Channel.from('attentionmil') .into{model_name_1; model_name_2}
-resolution = Channel.from(1) .into{ resolution1; resolution2; resolution3}
-dataset = 'tcga_all'
-expe = 'random_pred'
-with_test = 1
-// PROCESS GIVE ME COMPLIMENTSS {input: give ME, output: SCHNITZELL}
-// Useful Path
-config_chan = Channel.from('/mnt/data4/tlazard/projets/deepMIL/cross_val/handcrafted_configs/best_config_38.yaml')
-
-res_conf = resolution1 .merge (config_chan) .into{res_conf1; res_conf2}
-model_res_conf = model_name_1. combine(res_conf1)
-// Training parameters
+dataset = 'dataset_name'
+expe = 'expe_name'
+config_path = '/mnt/data4/tlazard/projets/deepMIL/cross_val/handcrafted_configs/best_config_38.yaml'
+model_name = 'attentionmil'
 test_fold = 5 
 repetition = 20 
 epochs = 100
+
+// Channels building.
+with_test = 1
+config_chan = Channel.from("${config_path}")
+model = Channel.from("${model_name}") .into{model_name_1; model_name_2}
+resolution = Channel.from(1) .into{ resolution1; resolution2; resolution3}
+config_chan = Channel.from("${config_path}")
+res_conf = resolution1 .merge (config_chan) .into{res_conf1; res_conf2}
+model_res_conf = model_name_1. combine(res_conf1)
 
 process Train {
     publishDir "${output_folder}", overwrite: true, pattern: "*.pt.tar", mode: 'copy'
