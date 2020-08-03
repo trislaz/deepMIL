@@ -83,6 +83,10 @@ def get_arguments(train=True, config=None):
                         type=int,
                         help='If embedded = 0, will use color augmentation',
                         default=1)
+    parser.add_argument('--patience_lr', 
+                        type=int,
+                        help='number of epochs for the lr linear decay',
+                        default=None)
     if not train: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
         parser.add_argument("--model_path",
                             type=str,
@@ -114,5 +118,8 @@ def get_arguments(train=True, config=None):
         args.sgn_metric = 1
     else:
         args.sgn_metric = -1
+
+    if args.patience_lr is None:
+        args.patience_lr = args.epochs
     return args
 
