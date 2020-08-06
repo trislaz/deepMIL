@@ -13,19 +13,22 @@ from .models import DeepMIL
 from .dataloader import EmbededWSI, Dataset_handler
 from collections import MutableMapping
 
-def load_model(config, model_path=None, dataset=None, table_data=None):
-    args = get_arguments(train=False, config=config)
-    if model_path is not None:
-        args.model_path = model_path
-    if dataset is not None:
-        args.path_tiles = dataset
-    if table_data is not None:
-        args.table_data = table_data
-    model = DeepMIL(args=args)
-    state = torch.load(args.model_path, map_location='cpu')
-    args.test_fold = state['args'].test_fold
-    model.network.load_state_dict(state['state_dict'])
-    data = Dataset_handler(args, predict=True)
+def load_model(model_path):
+    """Loads and prepare a learned model for prediction.
+
+    Args:
+        model_path (str): path to the *.pt.tar model
+    """
+    checkpoint = torch.load(model_path, map_location='cpu')
+    args = checkpoint['args']
+    model = DeepMIL(args)
+    model.network.load_state_dict(checkpoint['state_dict'])
+    model.network.eval()
+    return model
+
+def predict(model_path=None):
+    model = load_model(model_path)
+    data = Dataset_handler(model.args, predict=True)
     dataloader = data.get_loader(training=False)
     df = dataloader.dataset.table_data
     results = []
@@ -39,7 +42,7 @@ def load_model(config, model_path=None, dataset=None, table_data=None):
         r.update(serie) 
         results.append(r)
     results = pd.DataFrame(results)
-    results_test = results[results['test'] == args.test_fold]
+    results_test = results[results['test'] == model.args.test_fold]
     predicted_labels = results_test['prediction'].values
     true_labels = results_test['gt'].values
     confusion_mat = metrics.confusion_matrix(y_true=true_labels, y_pred=predicted_labels)

@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from deepmil.predict import load_model
+from deepmil.predict import load_model, predict
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -9,7 +9,7 @@ parser.add_argument("--model_path", type=str, help='path to the model to use')
 parser.add_argument("--out_name", type=str, help='name of the output file', default='prediction_output')
 args = parser.parse_args()
 
-df, confusion_mat, target_correspondance = load_model(config=args.config, model_path=args.model_path)
+df, confusion_mat, target_correspondance = predict(config=args.config, model_path=args.model_path)
 heatmap = sns.heatmap(confusion_mat, annot=True, cmap=plt.cm.Blues)
 heatmap.yaxis.set_ticklabels(target_correspondance, rotation=0, ha='right', fontsize=12)
 heatmap.xaxis.set_ticklabels(target_correspondance, rotation=45, ha='right', fontsize=12)
