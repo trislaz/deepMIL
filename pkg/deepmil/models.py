@@ -132,7 +132,8 @@ class DeepMIL(Model):
                 'state_scheduler': self.schedulers[0].state_dict(), 
                 'inner_counter': self.counter,
                 'args': self.args,
-                'best_metrics': self.best_metrics}
+                'best_metrics': self.best_metrics, 
+                'dataset':self.dataset}
         return dictio
 
 class DeepMILim(DeepMIL):

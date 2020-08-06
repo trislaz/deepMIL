@@ -1,11 +1,11 @@
 #!/usr/bin/env nextflow
 
-dataset = 'dataset_name'
-expe = 'expe_name'
-config_path = '/mnt/data4/tlazard/projets/deepMIL/cross_val/handcrafted_configs/best_config_38.yaml'
+dataset = 'curie'
+expe = 'only_lum_res2'
+config_path = '/mnt/data4/tlazard/projets/deepMIL/cross_val/handcrafted_configs/config_curie.yaml'
 model_name = 'attentionmil'
 test_fold = 5 
-repetition = 20 
+repetition = 5
 epochs = 100
 
 // Channels building.
@@ -30,7 +30,7 @@ process Train {
 
     input:
     set val(model), val(res), val(config) from model_res_conf
-    each test from 0..test_fold-3
+    each test from 0..test_fold-1
     each repeat from 1..repetition
 
     output:

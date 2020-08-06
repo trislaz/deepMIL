@@ -32,7 +32,7 @@ def load_model(config, model_path=None, dataset=None, table_data=None):
     model.network.eval()
     for o, (x, y) in enumerate(dataloader):
         y_hat = model.predict(x)
-        id_im = os.path.splitext(os.path.basename(dataloader.dataset.files[o]))[0] 
+        id_im = os.path.splitext(os.path.basename(dataloader.dataset.files[o]))[0].split('_embedded')[0]
         serie = df[df['ID'] == id_im].to_dict('records')[0]
         success = y_hat[1].item() == y.item()
         r = {'prediction': y_hat[1].item(), 'gt': y.item(), 'index':o,'success': success}

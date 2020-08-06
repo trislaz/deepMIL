@@ -10,7 +10,7 @@ parser.add_argument("--out_name", type=str, help='name of the output file', defa
 args = parser.parse_args()
 
 df, confusion_mat, target_correspondance = load_model(config=args.config, model_path=args.model_path)
-heatmap = sns.heatmap(confusion_mat, annot=True, cmap=plt.cm.Blues, normaliz)
+heatmap = sns.heatmap(confusion_mat, annot=True, cmap=plt.cm.Blues)
 heatmap.yaxis.set_ticklabels(target_correspondance, rotation=0, ha='right', fontsize=12)
 heatmap.xaxis.set_ticklabels(target_correspondance, rotation=45, ha='right', fontsize=12)
 plt.xlabel('predicted label')

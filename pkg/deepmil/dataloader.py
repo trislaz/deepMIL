@@ -91,8 +91,8 @@ class FolderWSI(Dataset):
         table = self.table_data
         is_in_db = slide in set(table['ID'])
         if 'test' in table.columns and (not self.predict):
-            is_in_train = (table[table['ID'] == slide]['test'] != self.args.test_fold).item() if is_in_db else False # "keep if i'm not test"
-            is_in_test = (table[table['ID'] == slide]['test'] == self.args.test_fold).item() if is_in_db else False
+            is_in_train = (table[table['ID'] == slide]['test'] != self.args.test_fold).values[0] if is_in_db else False # "keep if i'm not test"
+            is_in_test = (table[table['ID'] == slide]['test'] == self.args.test_fold).values[0] if is_in_db else False
             is_in_db = is_in_train if self.args.train else is_in_test
         return is_in_db
 
@@ -162,7 +162,8 @@ class EmbededWSI(Dataset):
         files_filtered =[]
         for f in files:
             name, _ = os.path.splitext(os.path.basename(f))
-            if self._is_in_db(f):
+            name = name.split('_embedded')[0] # vire le "embedded"... dirty
+            if self._is_in_db(name):
                 files_filtered.append(f)
                 target_dict[f] = np.float32(table[table['ID'] == name]['target'].values[0])
         return files_filtered, target_dict
@@ -179,7 +180,7 @@ class EmbededWSI(Dataset):
         self.table_data = table
         return table
 
-    def _is_in_db(self, f):
+    def _is_in_db(self, name):
         """Do we keep the file in the dataset ?
         To test :
             * Is the file in the table_data ?
@@ -188,11 +189,10 @@ class EmbededWSI(Dataset):
             * Other reason to exclude an image.
         """
         table = self.table_data
-        name, _ = os.path.splitext(os.path.basename(f))
         is_in_db = name in table['ID'].values
         if 'test' in table.columns and (not self.predict):
-            is_in_train = (table[table['ID'] == name]['test'] != self.args.test_fold).item() if is_in_db else False # "keep if i'm not test"
-            is_in_test = (table[table['ID'] == name]['test'] == self.args.test_fold).item() if is_in_db else False
+            is_in_train = (table[table['ID'] == name]['test'] != self.args.test_fold).values[0] if is_in_db else False # "keep if i'm not test"
+            is_in_test = (table[table['ID'] == name]['test'] == self.args.test_fold).values[0] if is_in_db else False
             is_in_db = is_in_train if self.args.train else is_in_test
         return is_in_db
 
