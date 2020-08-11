@@ -21,6 +21,7 @@ def load_model(model_path):
     """
     checkpoint = torch.load(model_path, map_location='cpu')
     args = checkpoint['args']
+    args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model = DeepMIL(args)
     model.network.load_state_dict(checkpoint['state_dict'])
     model.network.eval()
