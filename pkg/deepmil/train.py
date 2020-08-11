@@ -74,7 +74,6 @@ def main():
     data = Dataset_handler(args)
     dataloader_train, dataloader_val = data.get_loader(training=True)
     model.dataset = dataloader_train.dataset
-    model.target_correspondance = dataloader_train.dataset.target_correspondance # Will be useful when writing the results. TODO change that.
     while model.counter['epoch'] < args.epochs:
         t.start()
         print("Epochs {}".format(round(model.counter['epoch'])))
