@@ -13,11 +13,7 @@ visu_pred = 0
 
 // Channels building.
 with_test = 1
-config_chan = Channel.from("${config_path}")
-model = Channel.from("${model_name}") .into{model_name_1; model_name_2}
-resolution = Channel.from(res) .into{ resolution1; resolution2; resolution3}
-config_chan = Channel.from("${config_path}")
-res_conf = resolution1 .merge (config_chan) .into{res_conf1; res_conf2}
+config_chan = Channel.from("${config_path}") .set{config_chan1; config_chan2}
 model_res_conf = model_name_1. combine(res_conf1)
 
 process Train {
@@ -32,16 +28,16 @@ process Train {
  
 
     input:
-    set val(model), val(res), val(config) from model_res_conf
+    val(config) from config_chan1
     each test from 0..test_fold-1
     each repeat from 1..repetition
 
     output:
-    set val(model), file('*.pt.tar') into results
+    file('*.pt.tar') into results
 
     script:
     py = file('../scripts/train.py')
-    root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
+    root_expe = file("./outputs/${dataset}/${expe}/") 
     output_folder = file("${root_expe}/test_${test}/${repeat}/")
     """
     export EVENTS_TF_FOLDER=${output_folder}
@@ -57,13 +53,12 @@ process copyconfig {
 		
 	input: 
 	val _ from all_done1
-    set val(res), val(config) from res_conf2
-	each model from model_name_2
+    val(config) from config_chan2
 
 	output:
 
 	script:
-    root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
+    root_expe = file("./outputs/${dataset}/${expe}/") 
 	output_folder = root_expe
 	"""
 	cp ${config} ${output_folder}
@@ -79,16 +74,15 @@ process WritesResultFile {
     publishDir "${output_folder}", overwrite: true, pattern: "*.csv", mode:'copy'
 
     input:
-    set val(model), _ from all_done2 
-    each res from resolution2
+    val _ from all_done2 
 
     output:
     file('*.csv') into table_results
-    set val(model), val("$res"), file('*.pt.tar') into best_test_models
+    file('*.pt.tar') into best_test_models
     file('model_best_*.pt.tar') into checkpoints
 
     script:
-    root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
+    root_expe = file("./outputs/${dataset}/${expe}/") 
     output_folder = root_expe
     py = file('../scripts/writes_results_cross_val.py')
     """
@@ -107,13 +101,13 @@ if (with_test == 1){
 
 
         input:
-        set model, res, _ from best_test_models
+        val _ from best_test_models
 
         output:
         file('*.csv') into test_results
 
         script:
-        root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
+        root_expe = file("./outputs/${dataset}/${expe}/") 
         output_folder = root_expe
         py = file('../scripts/writes_final_results.py')
         """
