@@ -21,12 +21,22 @@ def load_model(model_path):
     """
     checkpoint = torch.load(model_path, map_location='cpu')
     args = checkpoint['args']
-    args.target_correspondance = checkpoint['dataset'].target_correspondance
+    if 'dataset' in checkpoint.keys():
+        args.target_correspondance = checkpoint['dataset'].target_correspondance
+    else:
+        args.target_correspondance = [0,1]
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model = DeepMIL(args)
     model.network.load_state_dict(checkpoint['state_dict'])
     model.network.eval()
     return model
+
+def get_args(args):
+    args_m = torch.load(args.model_path, map_location='cpu')['args']
+    args.embed_path = os.path.dirname(args_m.wsi)
+    args.table = args_m.table_data
+    args.raw_path = args_m.raw_path
+    return args
 
 def predict(model_path=None):
     model = load_model(model_path)

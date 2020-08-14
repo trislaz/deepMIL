@@ -87,6 +87,7 @@ def get_arguments(train=True, config=None):
                         type=int,
                         help='number of epochs for the lr linear decay',
                         default=None)
+    parser.add_argument('--ntrans', type=int, default=1)
     if not train: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
         parser.add_argument("--model_path",
                             type=str,
