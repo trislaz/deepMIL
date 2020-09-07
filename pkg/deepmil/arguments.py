@@ -23,6 +23,10 @@ def get_arguments(train=True, config=None):
                         type=int,
                         default=32,
                         help='size of the input tile, used if embedded=0')
+    parser.add_argument('--sampler',
+                        type=str,
+                        help='type of tile sampler. dispo : random_sampler | random_biopsie',
+                        default='random_sampler')
     # Data & model (in_layer)
     parser.add_argument('--embedded', 
                         type=int,

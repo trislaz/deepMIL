@@ -4,6 +4,7 @@ from PIL import Image
 from glob import glob
 import numpy as np
 import torch
+from tiler_wsi.tile_retriever.tile_sampler import TileSampler
 from torchvision import transforms
 from sklearn.model_selection import StratifiedShuffleSplit
 import os
@@ -120,6 +121,8 @@ class FolderWSI(Dataset):
 class EmbededWSI(Dataset):
     """
     DO NOT PRELOAD DATASET ON RAM. may be slow.
+    OTHER SOLUTION THAT MAY WORK FASTER : write each tile as a different file. Then load each of them and 
+    concatenate them to create a WSI.
     Implements a dataloader for already coded WSI.
     Each WSI is therefore a .npy array of size NxF with N the number of tiles 
     of the WSI and F the number of features of the embeding space (usually 2048).
@@ -138,27 +141,31 @@ class EmbededWSI(Dataset):
         args : Namespace
             must contain :
                 * table_data, str, path to the data info (.csv), with 'ID' column containing name of wsi.
-                * wsi, str, path to the embedded WSI (.npy) with name matching the 'ID' of table_data
+                * wsi, str, path to the the output folder of a tile_image process. #embedded WSI (.npy) with name matching the 'ID' of table_data
                 * target_name, str, name of the target variable (name of column in table_data)
                 * device, torch.device
                 * test_fold, int, number of the fold used as test.
                 * feature_depth, int, number of dimension of the embedded space to keep. (0<x<2048)
                 * nb_tiles, int, if 0 : take all the tiles, will need custom collate_fn, else randomly picks $nb_tiles in each WSI.
                 * train, bool, if True : extract the data s.t fold != test_fold, if False s.t. fold == test_fold
+                * sampler, str: tile sampler. dispo : random_sampler | random_biopsie
 
         """
         super(EmbededWSI, self).__init__()
         self.args = args
+        self.embeddings = os.path.join(args.wsi, 'mat_pca')
+        self.info = os.path.join(args.wsi, 'info')
         self.train = train
         self.predict = predict
         self.table_data = pd.read_csv(args.table_data)
-        self.files, self.target_dict = self._make_db()
+        self.files, self.target_dict, self.sampler_dict = self._make_db()
         self.constant_size = (args.nb_tiles != 0)
         
     def _make_db(self):
         table = self.transform_target()
         target_dict = dict() #Key = path to the file, value=target
-        files = glob(os.path.join(self.args.wsi, '*.npy'))
+        sampler_dict = dict()
+        files = glob(os.path.join(self.embeddings, '*.npy'))
         files_filtered =[]
         for f in files:
             name, _ = os.path.splitext(os.path.basename(f))
@@ -166,7 +173,8 @@ class EmbededWSI(Dataset):
             if self._is_in_db(name):
                 files_filtered.append(f)
                 target_dict[f] = np.float32(table[table['ID'] == name]['target'].values[0])
-        return files_filtered, target_dict
+                sampler_dict[f] = TileSampler(wsi_path=f, info_folder=self.info)
+        return files_filtered, target_dict, sampler_dict
 
     def transform_target(self):
         """Adds to table a numerical encoding of the target.
@@ -202,18 +210,21 @@ class EmbededWSI(Dataset):
     def __getitem__(self, idx):
         path = self.files[idx]
         mat = np.load(path)[:,:self.args.feature_depth]
-        mat = self._select_tiles(mat)
+        mat = self._select_tiles(path, mat)
         mat = torch.from_numpy(mat).float() #ToTensor
         target = self.target_dict[path]
         return mat, target
 
-    def _select_tiles(self, mat):
+    def _select_tiles(self, path, mat):
         """Select the tiles from a WSI.
         If we want a constant size, then $nb_tiles are randomly draw from the available tiles.
         If not, return the whole matrix.
 
         Parameters
         ----------
+        path: str
+            path of the WSI.
+
         mat : np.array
             matrix of the encoded WSI.
 
@@ -222,12 +233,9 @@ class EmbededWSI(Dataset):
         np.array
             selected tiles 
         """
-        if self.constant_size & self.train:
-            #step = mat.shape[0]//self.args.nb_tiles
-            #init = np.random.randint(0, step)
-            #indexes = np.array(np.arange(0, mat.shape[0] - step, step) + init)[:self.args.nb_tiles]
-            indexes = np.random.randint(mat.shape[0], size=self.args.nb_tiles)
-            mat = mat[indexes, :]
+        sampler = self.sampler_dict[path]
+        indices = getattr(sampler, self.args.sampler)(nb_tiles=self.args.nb_tiles)
+        mat = mat[indices, :]
         return mat
 
 def collate_variable_size(batch):
