@@ -5,7 +5,7 @@ use of pytorch.
 import functools
 from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity, MaxPool2d, Conv3d,
                       Sigmoid, Conv1d, Conv2d, ReLU, Dropout, BatchNorm1d, BatchNorm2d, InstanceNorm1d, 
-                      MaxPool3d, functional, LayerNorm)
+                      MaxPool3d, functional, LayerNorm, MultiheadAttention)
 from torch.nn.modules import TransformerEncoder, TransformerEncoderLayer
 import torch
 from torchvision import transforms
@@ -319,15 +319,25 @@ class SelfAttentionMIL(Module):
         x = x.squeeze(-1)
         return x
 
+
 class TransformerMIL(Module):
     def __init__(self, args):
         super(TransformerMIL, self).__init__()
         encoder_layer = TransformerEncoderLayer(d_model=args.feature_depth, nhead=8, dim_feedforward=2048, dropout=args.dropout, activation="relu")
         encoder_norm = LayerNorm(args.feature_depth)
-        self.attention = TransformerEncoder(encoder_layer, 1, encoder_norm)
+        self.attention = TransformerEncoder(encoder_layer, args.ntrans, encoder_norm)
+        #self.attention1 = MultiheadAttention(args.feature_depth, 8)
+        self.attention2 = MultiheadAttention(args.feature_depth, 8)
+        self.classifier = Sequential(
+            Linear(args.feature_depth, 1),
+            Sigmoid())
         self.mil = AttentionMILFeatures(args)
     def forward(self, x):
-        x = self.attention(x)
+        #x= self.attention(x)
+        x, _ = self.attention2(x, x, x)
+        #x = x.mean(-2)
+        #x = self.classifier(x)
+        #x = x.squeeze(-1)
         x = self.mil(x)
         return x
 
@@ -368,13 +378,36 @@ class MILGene(Module):
             x = x.view(-1, 3, args.in_shape, args.in_shape)
         return x 
 
+#for name, param in net.named_parameters():
+#  # if the param is from a linear and is a bias
+#  if "fc" in name and "bias" in name:
+#    param.register_hook(hook_fn)
+
+def hook(m, name):
+    def hook_fn(m):
+        print('______grad__ {} ________'.format(name))
+        print(m)
+        print('\n')
+    m.register_hook(hook_fn)
+    
+def place_hook(net, layer_names):
+    for n, p in net.named_parameters():
+        for to_hook in layer_names:
+            if to_hook in n:
+                hook(p, n) 
+
+
+
 
 if __name__ == '__main__':
+
     import numpy as np
     import torch
     from argparse import Namespace
-    #slide = np.load('/Users/trislaz/Documents/cbio/data/tcga/tcga_all_encoded/mat_pca/image_tcga_0.npy')
-    batch_size = 16
+    curie = '/mnt/data4/tlazard/data/curie/curie_recolo_tiled/imagenet/size_256/res_1/mat/353536B_embedded.npy'
+    tcga = '/mnt/data4/tlazard/AutomaticWSI/outputs/tcga_all_auto_mask/tiling/imagenet/1/mat_pca/image_tcga_2.npy'
+    #slide = torch.Tensor(np.load(tcga)).unsqueeze(0)
+    batch_size = 2 
     nb_tiles = 100
     feature_depth = 512
     slide = torch.rand((batch_size, nb_tiles, feature_depth))
@@ -387,10 +420,23 @@ if __name__ == '__main__':
             'features_net': 'resnet',
             'batch_size': batch_size,
             'nb_tiles' : nb_tiles,
-            'embedded': 1
+            'embedded': 1,
+            'ntrans':4
             }
     args = Namespace(**args)
     model = MILGene(args)
+    
+    to_hook =  set(['layers.0.linear1.weight', 'classifier.0.weight', 'layers.1.linear1.weight', 'layers.2.linear1.weight'])
+
+    ## Hook ! 
+    place_hook(model, to_hook)
+    slide1 = slide + 1 
+    slide1.retain_grad()
+    x = model(slide1)
+    x=x.squeeze()
+    loss = torch.nn.BCELoss()(x, torch.ones(2))
+    loss.backward()
+    print('over')
     #model.eval()
     #output = model(slide)
-    model(slide)
+
