@@ -264,9 +264,10 @@ class EmbededWSI(Dataset):
         np.array
             selected tiles 
         """
-        sampler = self.sampler_dict[path]
-        indices = getattr(sampler, self.args.sampler)(nb_tiles=self.args.nb_tiles)
-        mat = mat[indices, :]
+        if self.train:
+            sampler = self.sampler_dict[path]
+            indices = getattr(sampler, self.args.sampler)(nb_tiles=self.args.nb_tiles)
+            mat = mat[indices, :]
         return mat
 
 def collate_variable_size(batch):
