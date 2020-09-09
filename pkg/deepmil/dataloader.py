@@ -17,6 +17,7 @@ class FolderWSI(Dataset):
             * n_sample, int, number of tiles per WSI to sample
             * table_data, str, path to the csv containing data info (one column must be $target_name)
             * wsi, str, path to the data folder
+            * sampler, str, type of sampler. dispo: random_sampler | random_biopsie
         
         The datafolder (at args.wsi/) must be organized as follow:
             *$args.wsi/:
@@ -39,22 +40,24 @@ class FolderWSI(Dataset):
         super(FolderWSI, self).__init__()
         self.args = args
         self.train = train
+        self.info = os.path.join(args.wsi, 'info')
         self.table_data = pd.read_csv(args.table_data)
         self.predict = predict
         self.target_name = args.target_name
         self._transform_target()
-        self.images = dict()
+        self.files = dict()
         self.target_dict = dict()
-        self._get_images(args.wsi)
+        self.sampler_dict = dict()
+        self._get_files(args.wsi)
         self.transform = transform
         self.nb_tiles = args.nb_tiles
         
-    def _get_images(self, path):
+    def _get_files(self, path):
         possible_dir = os.listdir(path)
         for d in possible_dir:
             if os.path.isdir(os.path.join(path, d)):
                 if self._make_target_dict(d):
-                    self.images[d] = glob(os.path.join(path, d, '*.jpg'))
+                    self.files[d] = glob(os.path.join(path, d, 'tile_*'))
 
     def _transform_target(self):
         """Adds to table to self.table_data
@@ -79,6 +82,7 @@ class FolderWSI(Dataset):
         if is_in_db:
             target = self.table_data[self.table_data['ID'] == slide]['target'].values[0]
             self.target_dict[slide] = target
+            self.sampler_dict[slide] = TileSampler(wsi_path=slide, info_folder=self.info)
         return is_in_db
 
     def _is_in_db(self, slide):
@@ -97,13 +101,39 @@ class FolderWSI(Dataset):
             is_in_db = is_in_train if self.args.train else is_in_test
         return is_in_db
 
+    def _select_tiles(self, slide, tiles):
+        """Select the tiles from a WSI.
+        If we want a constant size, then $nb_tiles are randomly draw from the available tiles.
+        If not, return the whole matrix.
+
+        Parameters
+        ----------
+        path: str
+            path of the WSI.
+
+        mat : np.array
+            matrix of the encoded WSI.
+
+        Returns
+        -------
+        np.array
+            selected tiles 
+        """
+        sampler = self.sampler_dict[slide]
+        tiles = np.array(tiles)
+        indices = getattr(sampler, self.args.sampler)(nb_tiles=self.args.nb_tiles)
+        sample = tiles[indices]
+        mat = [np.load(s) for s in sample]
+        mat = np.vstack(mat)
+        return mat
+
     def __len__(self):
-        return len(self.images)
+        return len(self.files)
 
     def __getitem__(self, idx):
-        wsi = list(self.images)[idx]
-        impath = self.images[wsi]
-        np.random.shuffle(impath)
+        wsi = list(self.files)[idx] # self.files is dict.
+        impath = self.files[wsi]
+        
         instances = []
         if self.train:
             nb_tiles = self.nb_tiles
@@ -153,6 +183,7 @@ class EmbededWSI(Dataset):
         """
         super(EmbededWSI, self).__init__()
         self.args = args
+        self.joint_tiles = 0 # put to 1 if we use a dataset where all the tiles of a wsi are joined in one array.
         self.embeddings = os.path.join(args.wsi, 'mat_pca')
         self.info = os.path.join(args.wsi, 'info')
         self.train = train
@@ -247,6 +278,7 @@ class Dataset_handler:
     def __init__(self, args, predict=False):
         self.args = args
         self.predict = predict
+        self.joint_tiles = 0
         self.num_workers = args.num_workers 
         self.embedded = args.embedded
         self.dataset_train = self._get_dataset(train=True)
@@ -264,7 +296,7 @@ class Dataset_handler:
         return dataloaders
         
     def _get_dataset(self, train):
-        if self.embedded:
+        if self.joint_tiles:
             dataset = EmbededWSI(self.args, train=train, predict=self.predict)
         else:
             dataset = FolderWSI(self.args, train=train, transform=get_transform(train=train, color_aug=self.args.color_aug))
