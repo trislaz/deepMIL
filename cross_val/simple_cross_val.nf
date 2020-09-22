@@ -1,15 +1,15 @@
 #!/usr/bin/env nextflow
 
 dataset = 'curie_whole'
-expe = 'lum_afa_118'
+expe = 'test_dataloader'
 config_path = '/mnt/data4/tlazard/projets/deepMIL/cross_val/handcrafted_configs/config_curie.yaml'
 model_name = 'attentionmil'
 test_fold = 5 
-repetition = 5
+repetition = 1
 epochs = 100
 res = 2
 visu_pred = 0
-queue = "gpu-cmm"
+queue = "gpu-cbio"
 
 // Channels building.
 with_test = 1
@@ -27,7 +27,7 @@ process Train {
 	queue "${queue}"
     clusterOptions "--gres=gpu:1"
     maxForks 10
-    memory '40GB'
+    memory '60GB'
 	cpus 6
  
 
@@ -46,29 +46,29 @@ process Train {
     """
     export EVENTS_TF_FOLDER=${output_folder}
 	module load cuda10.0
-    python $py --config ${config} --test_fold $test --epochs $epochs --repeat $repeat --model_name ${model}
+    python $py --config ${config} --test_fold $test --epochs $epochs --repeat $repeat --model_name ${model} 
     """
 }
 
 results .groupTuple()
         .into {all_done1; all_done2}
 
-process copyconfig {
-		
-	input: 
-	val _ from all_done1
-    set val(res), val(config) from res_conf2
-	each model from model_name_2
-
-	output:
-
-	script:
-    root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
-	output_folder = root_expe
-	"""
-	cp ${config} ${output_folder}
-	"""
-}
+//process copyconfig {
+//		
+//	input: 
+//	val _ from all_done1
+//    set val(res), val(config) from res_conf2
+//	each model from model_name_2
+//
+//	output:
+//
+//	script:
+//    root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
+//	output_folder = root_expe
+//	"""
+//	cp ${config} ${output_folder}
+//	"""
+//}
 
 
 // Exctracts the output files, the best parameters and best model.
@@ -102,7 +102,7 @@ if (with_test == 1){
         publishDir "${output_folder}", overwrite:true, pattern:"*.csv", mode:'copy'
     	queue "gpu-cmm"
     	clusterOptions "--gres=gpu:1"
-    	memory '40GB'
+    	memory '60GB'
 		cpus 7
 
 
@@ -131,7 +131,7 @@ if (visu_pred == 1) {
         publishDir "${output_folder}/summaries/", overwrite:true, pattern:"*.jpg", mode:'copy'
     	queue "${queue}"
     	clusterOptions "--gres=gpu:1"
-    	memory '40GB'
+    	memory '60GB'
 		cpus 7
 
 

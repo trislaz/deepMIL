@@ -36,6 +36,7 @@ def predict(model_path=None):
     results = []
     model.network.eval()
     for o, (x, y) in enumerate(dataloader):
+        print(x.shape)
         y_hat = model.predict(x)
         id_im = os.path.splitext(os.path.basename(dataloader.dataset.files[o]))[0].split('_embedded')[0]
         serie = df[df['ID'] == id_im].to_dict('records')[0]

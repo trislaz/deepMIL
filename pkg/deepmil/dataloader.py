@@ -57,7 +57,7 @@ class FolderWSI(Dataset):
         for d in possible_dir:
             if os.path.isdir(os.path.join(path, d)):
                 if self._make_target_dict(d):
-                    self.files[d] = glob(os.path.join(path, d, 'tile_*'))
+                    self.files[d] = glob(os.path.join(path, d, 'tile_*.npy'))
 
     def _transform_target(self):
         """Adds to table to self.table_data
@@ -133,19 +133,17 @@ class FolderWSI(Dataset):
     def __getitem__(self, idx):
         wsi = list(self.files)[idx] # self.files is dict.
         impath = self.files[wsi]
-        
-        instances = []
-        if self.train:
-            nb_tiles = self.nb_tiles
-        else:
-            nb_tiles = min(280, len(impath))
-        for i in range(self.nb_tiles):
-            instance = Image.open(impath[i])
-            if self.transform is not None:
-                instance = self.transform(instance)
-            instances.append(instance)
-        instances = torch.stack(instances)
-        instances = instances.permute(1, 0, 2, 3)
+        instances = self._select_tiles(wsi, impath)
+        instances = torch.from_numpy(instances).float() #ToTensor
+        #instances = []
+
+        #for i in range(self.nb_tiles):
+        #    instance = Image.open(impath[i])
+        #    if self.transform is not None:
+        #        instance = self.transform(instance)
+        #    instances.append(instance)
+        #instances = torch.stack(instances)
+        #instances = instances.permute(1, 0, 2, 3)
         return instances, self.target_dict[wsi]
 
 class EmbededWSI(Dataset):
@@ -183,7 +181,6 @@ class EmbededWSI(Dataset):
         """
         super(EmbededWSI, self).__init__()
         self.args = args
-        self.joint_tiles = 0 # put to 1 if we use a dataset where all the tiles of a wsi are joined in one array.
         self.embeddings = os.path.join(args.wsi, 'mat_pca')
         self.info = os.path.join(args.wsi, 'info')
         self.train = train
@@ -279,7 +276,7 @@ class Dataset_handler:
     def __init__(self, args, predict=False):
         self.args = args
         self.predict = predict
-        self.joint_tiles = 0
+        self.joint_tiles = 1
         self.num_workers = args.num_workers 
         self.embedded = args.embedded
         self.dataset_train = self._get_dataset(train=True)

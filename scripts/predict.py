@@ -1,11 +1,11 @@
 from argparse import ArgumentParser
 from deepmil.predict import load_model, predict
 import seaborn as sns
+import os
 import matplotlib.pyplot as plt
 
 parser = ArgumentParser()
 parser.add_argument("--model_path", type=str, help='path to the model to use')
-parser.add_argument("--out_name", type=str, help='name of the output file', default='prediction_output')
 args = parser.parse_args()
 
 df, confusion_mat, target_correspondance = predict(model_path=args.model_path)
@@ -14,5 +14,9 @@ heatmap.yaxis.set_ticklabels(target_correspondance, rotation=0, ha='right', font
 heatmap.xaxis.set_ticklabels(target_correspondance, rotation=45, ha='right', fontsize=12)
 plt.xlabel('predicted label')
 plt.ylabel('true label')
-plt.savefig(args.out_name + '_confu_test.jpg')
-df.to_csv(args.out_name+'.csv', index=False)
+model_name, _ = os.path.splitext(os.path.basename(args.model_path))
+root = os.path.dirname(args.model_path)
+confu_path = os.path.join(root, model_name+'_test_confu.jpg')
+csv_path= os.path.join(root, model_name+'_test_res.csv')
+plt.savefig(confu_path)
+df.to_csv(csv_path, index=False)

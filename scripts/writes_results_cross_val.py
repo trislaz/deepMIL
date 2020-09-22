@@ -118,9 +118,12 @@ def main():
     parser.add_argument("--path", type=str, help="folder where are stored the models.")
     args = parser.parse_args()
     models = glob(os.path.join(args.path, '**/*_best.pt.tar'), recursive=True)
-    rows = [] 
+    rows = []
     for m in models:
-        state = torch.load(m, map_location='cpu')
+        try:
+            state = torch.load(m, map_location='cpu')
+        except:
+            continue
         args_m = state['args']
         references = extract_references(args_m)
         metrics = state['best_metrics']

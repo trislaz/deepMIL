@@ -40,7 +40,7 @@ def main(config=None, model_path=None,  w=False):
     state = torch.load(args.model_path, map_location='cpu')
     args.test_fold = state['args'].test_fold
     model.network.load_state_dict(state['state_dict'])
-    data = Dataset_handler(args)
+    data = Dataset_handler(args, predict=True)
     dataloader = data.get_loader(training=False)
     results = test(model, dataloader)
     results['test'] = '{}'.format(args.test_fold)
