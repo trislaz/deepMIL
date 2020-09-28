@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import torch
 import os
+import copy
 import yaml
 
 def get_arguments(train=True, config=None):
@@ -37,6 +38,7 @@ def get_arguments(train=True, config=None):
     parser.add_argument('--dropout', type=float, help='dropout parameter', default=0)
     parser.add_argument('--color_aug',  type=int,help='If embedded = 0, will use color augmentation', default=1)
     parser.add_argument('--patience_lr',  type=int, help='number of epochs for the lr linear decay', default=None)
+    parser.add_argument('--write_config', action='store_true', help='writes config in the cwd.')
 
 
     if not train: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
@@ -72,5 +74,12 @@ def get_arguments(train=True, config=None):
 
     if args.patience_lr is None:
         args.patience_lr = args.epochs
+    
+    dictio = copy.copy(vars(args))
+    del dictio['device']
+    config_str = yaml.dump(dictio)
+    with open('./config.yaml', 'w') as config_file:
+        config_file.write(config_str)
+      
     return args
 

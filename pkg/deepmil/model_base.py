@@ -60,7 +60,7 @@ class Model(ABC):
         """Can be called after having define the optimizers (list-like)
         """
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau
-        self.schedulers = [scheduler(optimizer=o, patience=self.args.patience_lr) for o in self.optimizers]
+        self.schedulers = [scheduler(optimizer=o, patience=self.args.patience_lr, factor=0.3) for o in self.optimizers]
 
     def update_learning_rate(self, metric):
         for sch in self.schedulers:

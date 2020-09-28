@@ -23,11 +23,12 @@ model_res_conf = model_name_1. combine(res_conf1)
 process Train {
     publishDir "${output_folder}", overwrite: true, pattern: "*.pt.tar", mode: 'copy'
     publishDir "${output_folder}", overwrite: true, pattern: "*eventsevents.*", mode: 'copy'
+    publishDir "{output_folder}", overwrite: true, pattern:"*.yaml", mode: 'copy'
 
 	queue "${queue}"
     clusterOptions "--gres=gpu:1"
     maxForks 10
-    memory '60GB'
+    memory '40GB'
 	cpus 6
  
 
@@ -38,6 +39,7 @@ process Train {
 
     output:
     set val(model), file('*.pt.tar') into results
+    val('*.yaml')
 
     script:
     py = file('../scripts/train.py')
@@ -52,23 +54,6 @@ process Train {
 
 results .groupTuple()
         .into {all_done1; all_done2}
-
-//process copyconfig {
-//		
-//	input: 
-//	val _ from all_done1
-//    set val(res), val(config) from res_conf2
-//	each model from model_name_2
-//
-//	output:
-//
-//	script:
-//    root_expe = file("./outputs/${dataset}/${expe}/${model}/res_${res}/") 
-//	output_folder = root_expe
-//	"""
-//	cp ${config} ${output_folder}
-//	"""
-//}
 
 
 // Exctracts the output files, the best parameters and best model.

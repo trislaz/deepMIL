@@ -8,6 +8,7 @@ from torch import load
 from .arguments import get_arguments
 from .models import DeepMIL
 from .dataloader import Dataset_handler
+from .predict import load_model
 from collections import MutableMapping
 
 def convert_flatten(d, parent_key='', sep='_'):
@@ -32,16 +33,15 @@ def test(model, dataloader):
     results = convert_flatten(results)
     return results 
 
-def main(config=None, model_path=None,  w=False):
-    args = get_arguments(train=False, config=config)
-    if model_path is not None:
-        args.model_path = model_path
-    model = DeepMIL(args=args)
-    state = torch.load(args.model_path, map_location='cpu')
-    args.test_fold = state['args'].test_fold
-    model.network.load_state_dict(state['state_dict'])
-    data = Dataset_handler(args, predict=True)
+def main(model_path=None,  w=False):
+    model = load_model(model_path)
+    args = model.args
+    args.train = False
+    data = Dataset_handler(args)
     dataloader = data.get_loader(training=False)
+    df = dataloader.dataset.table_data
+    results = []
+    args.test_fold = args.test_fold
     results = test(model, dataloader)
     results['test'] = '{}'.format(args.test_fold)
     if w:

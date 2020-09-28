@@ -14,6 +14,7 @@ import torchvision
 
 ## Use Cross_entropy loss nn.CrossEntropyLoss
 # TODO change the get_* functions with _get_*
+
 # TODO as soon as required, put the decription of args.
 
 def is_in_args(args, name, default):
@@ -34,22 +35,25 @@ class AttentionMILFeatures(Module):
     def __init__(self, args):
         super(AttentionMILFeatures, self).__init__()
         width_fe = is_in_args(args, 'width_fe', 64)
-        self.feature_extractor = Sequential(
-            Linear(args.feature_depth, width_fe),
-            ReLU(),
-            Dropout(p=args.dropout),
-            Linear(width_fe, width_fe),
-            ReLU(),
-            Dropout(p=args.dropout)
-        )
+        #self.feature_extractor = Sequential(
+        #    Linear(args.feature_depth, width_fe),
+        #    ReLU(),
+        #    Dropout(p=args.dropout),
+        #    Linear(width_fe, width_fe),
+        #    ReLU(),
+        #    Dropout(p=args.dropout)
+        #)
         self.weight_extractor = Sequential(
-            Linear(width_fe, int(width_fe/2)),
+            Linear(args.feature_depth, int(width_fe/2)), #width_fe, int(width_fe/2)),
             Tanh(),
             Linear(int(width_fe/2), 1),
             Softmax(dim=-2) # Softmax sur toutes les tuiles. somme à 1.
         )
         self.classifier = Sequential(
-            Linear(width_fe, 1),
+            Linear(args.feature_depth, width_fe),
+            ReLU(),# Added 25/09
+            Dropout(p=args.dropout),# Added 25/09
+            Linear(width_fe, 1),# Added 25/09
             Sigmoid()
         )
     def forward(self, x):
@@ -58,12 +62,13 @@ class AttentionMILFeatures(Module):
             * F is the dimension of feature space
             * N is number of patche
         """
-        f = self.feature_extractor(x)
-        w = self.weight_extractor(f)
+
+        w = self.weight_extractor(x)
         w = torch.transpose(w, -1, -2)
-        slide = torch.matmul(w, f) # Slide representation, weighted sum of the patches
+        slide = torch.matmul(w, x) # Slide representation, weighted sum of the patches
         out = self.classifier(slide)
         out = out.squeeze(-1).squeeze(-1)
+
         return out
 
 def get_norm_layer(use_bn=True, d=1):

@@ -10,10 +10,12 @@ def main():
     args = parser.parse_args()
 
     models_path = glob(os.path.join(args.path, 'model_best_test_*.pt.tar'), recursive=True)
-    config = glob(os.path.join(args.path, '*.yaml'))[0]
     final_res = []
     for model in models_path:
-        res = test.main(config=config, model_path=model)
+        try:
+            res = test.main(model_path=model)
+        except:
+            continue
         final_res.append(res)
     df_res = pd.DataFrame(final_res)
     mean = df_res.mean(axis=0).to_frame().transpose()
