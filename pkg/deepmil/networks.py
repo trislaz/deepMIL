@@ -5,13 +5,16 @@ use of pytorch.
 import functools
 from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity, MaxPool2d, Conv3d,
                       Sigmoid, Conv1d, Conv2d, ReLU, Dropout, BatchNorm1d, BatchNorm2d, InstanceNorm1d, 
-                      MaxPool3d, functional, LayerNorm, MultiheadAttention, Parameter)
+                      MaxPool3d, functional, LayerNorm, MultiheadAttention)
 from torch.nn.modules import TransformerEncoder, TransformerEncoderLayer
+from torch.nn.parameter import Parameter
 import torch
 from torch.nn.init import (xavier_normal_, xavier_uniform_, constant_)
 import torch.nn.functional as F
 from torchvision import transforms
 import torchvision
+
+F.multi_head_attention_forward
 
 def deprecate_in_favor_of(new_name):
     def deprecated(func):
@@ -47,25 +50,18 @@ class MultiHeadedAttentionMIL(Module):
 
     def __init__(self, args):
         super(MultiHeadedAttentionMIL, self).__init__()
+        self.dropout = args.dropout
         width_fe = is_in_args(args, 'width_fe', 64)
         atn_dim = is_in_args(args, 'atn_dim', 256)
         self.num_heads = is_in_args(args, 'num_heads', 1)
         self.dim_heads = atn_dim // self.num_heads
         assert self.dim_heads * self.num_heads == atn_dim, "atn_dim must be divisible by num_heads"
 
-        self.atn_layer_1_weights = Parameter(torch.empty((atn_dim, args.feature_depth)))
-        self.atn_layer_2_weights = Parameter(torch.empty(1, 1, self.num_heads, self.dim_heads, 1))
+        self.atn_layer_1_weights = Parameter(torch.Tensor(atn_dim, args.feature_depth))
+        self.atn_layer_2_weights = Parameter(torch.Tensor(1, 1, self.num_heads, self.dim_heads, 1))
         self.atn_layer_1_bias = Parameter(torch.empty((atn_dim)))
         self.atn_layer_2_bias = Parameter(torch.empty((1, self.num_heads, 1, 1)))
-
         self._init_weights()
-
-        self.weight_extractor = Sequential(
-            Linear(args.feature_depth, int(width_fe/2)), #width_fe, int(width_fe/2)),
-            Tanh(),
-            Linear(int(width_fe/2), 1),
-            Softmax(dim=-2) # Softmax sur toutes les tuiles. somme à 1.
-        )
 
         self.classifier = Sequential(
             Linear(int(args.feature_depth * self.num_heads), width_fe),
@@ -83,6 +79,10 @@ class MultiHeadedAttentionMIL(Module):
         xavier_uniform_(self.atn_layer_2_weights)
         constant_(self.atn_layer_1_bias, 0)
         constant_(self.atn_layer_2_bias, 0)
+        #self.register_parameter('atn_layer_1_weigths', self.atn_layer_1_weights)
+        #self.register_parameter('atn_layer_2_weigths', self.atn_layer_2_weights)
+        #self.register_parameter('atn_layer_1_bias', self.atn_layer_1_bias)
+        #self.register_parameter('atn_layer_2_bias', self.atn_layer_2_bias)
 
     def _weight_extraction_forward(self, x):
         """ Extracts a series of attention scores.
@@ -94,10 +94,15 @@ class MultiHeadedAttentionMIL(Module):
             torch.Tensor: size (batch, nb_tiles, nb_heads)
         """
         bs, nbt, _ = x.shape
+
+        # Weights extraction
         x = F.linear(x, weight=self.atn_layer_1_weights, bias=self.atn_layer_1_bias)
+        x = F.tanh(x)
+        x = F.dropout(x, p=self.dropout, training=self.training)
         x = x.view((bs, nbt, self.num_heads, 1, self.dim_heads))
         x = torch.matmul(x , self.atn_layer_2_weights) + self.atn_layer_2_bias # 4 scores.
         x = x.view(bs, nbt, -1) # shape (bs, nbt, nheads) 
+        x = F.softmax(x, dim=-2)
         return x
         
     def forward(self, x):
@@ -484,6 +489,7 @@ class TransformerMIL(Module):
 
 class MILGene(Module):
     models = {'attentionmil': AttentionMILFeatures, 
+                'multiheadmil': MultiHeadedAttentionMIL,
                 'conan': Conan, 
                 '1s': model1S, 
                 'sa': SelfAttentionMIL,
@@ -556,7 +562,7 @@ if __name__ == '__main__':
     args = {'feature_depth': feature_depth,
             'dropout':0,
             'in_shape': 256,
-            'model_name': 'attentionmil',
+            'model_name': 'multiheadmil',
             'constant_size':True,
             'features_net': 'resnet',
             'batch_size': batch_size,
