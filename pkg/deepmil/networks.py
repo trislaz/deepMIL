@@ -5,13 +5,21 @@ use of pytorch.
 import functools
 from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity, MaxPool2d, Conv3d,
                       Sigmoid, Conv1d, Conv2d, ReLU, Dropout, BatchNorm1d, BatchNorm2d, InstanceNorm1d, 
-                      MaxPool3d, functional, LayerNorm, MultiheadAttention)
+                      MaxPool3d, functional, LayerNorm, MultiheadAttention, Parameter)
 from torch.nn.modules import TransformerEncoder, TransformerEncoderLayer
 import torch
+from torch.nn.init import (xavier_normal_, xavier_uniform_, constant_)
+import torch.nn.functional as F
 from torchvision import transforms
 import torchvision
 
-
+def deprecate_in_favor_of(new_name):
+    def deprecated(func):
+        def decorator(*args, **kwargs):
+            print('Deprecated. Use {} instead.'.format(new_name))
+            func(*args, **kwargs)
+        return decorator
+    return deprecated
 ## Use Cross_entropy loss nn.CrossEntropyLoss
 # TODO change the get_* functions with _get_*
 
@@ -27,11 +35,92 @@ def is_in_args(args, name, default):
         para = default
     return para
 
+class MultiHeadedAttentionMIL(Module):
+    """
+    Implements deepMIL while taking 1D vectors as instances (output of resnet for example)
+    Bags are then NxF matrices, F the feature number (usually 2048), N the number of instances of the bag.
+    """
+
+    ## Change in other functions
+    # atn_dim = dim attention.
+    # num_heads = nombre de tete chercheuses 
+
+    def __init__(self, args):
+        super(MultiHeadedAttentionMIL, self).__init__()
+        width_fe = is_in_args(args, 'width_fe', 64)
+        atn_dim = is_in_args(args, 'atn_dim', 256)
+        self.num_heads = is_in_args(args, 'num_heads', 1)
+        self.dim_heads = atn_dim // self.num_heads
+        assert self.dim_heads * self.num_heads == atn_dim, "atn_dim must be divisible by num_heads"
+
+        self.atn_layer_1_weights = Parameter(torch.empty((atn_dim, args.feature_depth)))
+        self.atn_layer_2_weights = Parameter(torch.empty(1, 1, self.num_heads, self.dim_heads, 1))
+        self.atn_layer_1_bias = Parameter(torch.empty((atn_dim)))
+        self.atn_layer_2_bias = Parameter(torch.empty((1, self.num_heads, 1, 1)))
+
+        self._init_weights()
+
+        self.weight_extractor = Sequential(
+            Linear(args.feature_depth, int(width_fe/2)), #width_fe, int(width_fe/2)),
+            Tanh(),
+            Linear(int(width_fe/2), 1),
+            Softmax(dim=-2) # Softmax sur toutes les tuiles. somme à 1.
+        )
+
+        self.classifier = Sequential(
+            Linear(int(args.feature_depth * self.num_heads), width_fe),
+            ReLU(),# Added 25/09
+            Dropout(p=args.dropout),# Added 25/09
+            Linear(width_fe, width_fe),
+            ReLU(),# Added 25/09
+            Dropout(p=args.dropout),# Added 25/09
+            Linear(width_fe, 1),# Added 25/09
+            Sigmoid()
+        )
+
+    def _init_weights(self):
+        xavier_uniform_(self.atn_layer_1_weights)
+        xavier_uniform_(self.atn_layer_2_weights)
+        constant_(self.atn_layer_1_bias, 0)
+        constant_(self.atn_layer_2_bias, 0)
+
+    def _weight_extraction_forward(self, x):
+        """ Extracts a series of attention scores.
+
+        Args:
+            x (torch.Tensor): size (batch, nb_tiles, features)
+
+        Returns:
+            torch.Tensor: size (batch, nb_tiles, nb_heads)
+        """
+        bs, nbt, _ = x.shape
+        x = F.linear(x, weight=self.atn_layer_1_weights, bias=self.atn_layer_1_bias)
+        x = x.view((bs, nbt, self.num_heads, 1, self.dim_heads))
+        x = torch.matmul(x , self.atn_layer_2_weights) + self.atn_layer_2_bias # 4 scores.
+        x = x.view(bs, nbt, -1) # shape (bs, nbt, nheads) 
+        return x
+        
+    def forward(self, x):
+        """
+        Input x of size NxF where :
+            * F is the dimension of feature space
+            * N is number of patche
+        """
+        bs, nbt, _ = x.shape
+        w = self._weight_extraction_forward(x) # (bs, nbt, nheads)
+        w = torch.transpose(w, -1, -2) # (bs, nheads, nbt)
+        slide = torch.matmul(w, x) # Slide representation, shape (bs, nheads, nfeatures)
+        slide = slide.flatten(1, -1) # (bs, nheads*nfeatures)
+        out = self.classifier(slide)
+        out = out.view(bs)
+        return out
+
 class AttentionMILFeatures(Module):
     """
     Implements deepMIL while taking 1D vectors as instances (output of resnet for example)
     Bags are then NxF matrices, F the feature number (usually 2048), N the number of instances of the bag.
     """
+    @deprecate_in_favor_of('MultiHeadedAttentionMIL')
     def __init__(self, args):
         super(AttentionMILFeatures, self).__init__()
         width_fe = is_in_args(args, 'width_fe', 64)
@@ -66,6 +155,53 @@ class AttentionMILFeatures(Module):
         w = self.weight_extractor(x)
         w = torch.transpose(w, -1, -2)
         slide = torch.matmul(w, x) # Slide representation, weighted sum of the patches
+        out = self.classifier(slide)
+        out = out.squeeze(-1).squeeze(-1)
+
+        return out
+
+class AttentionMILFeatures_badweigths(Module):
+    """
+    Implements deepMIL while taking 1D vectors as instances (output of resnet for example)
+    Bags are then NxF matrices, F the feature number (usually 2048), N the number of instances of the bag.
+    """
+
+    @deprecate_in_favor_of('MultiHeadedAttentionMIL')
+    def __init__(self, args):
+        super(AttentionMILFeatures, self).__init__()
+        width_fe = is_in_args(args, 'width_fe', 64)
+        self.feature_extractor = Sequential(
+            Linear(args.feature_depth, width_fe),
+            ReLU(),
+            Dropout(p=args.dropout),
+            Linear(width_fe, width_fe),
+            ReLU(),
+            Dropout(p=args.dropout)
+        )
+        self.weight_extractor = Sequential(
+            Linear(width_fe, int(width_fe/2)),
+            Tanh(),
+            Linear(int(width_fe/2), 1),
+            Softmax(dim=-2) # Softmax sur toutes les tuiles. somme à 1.
+        )
+        self.classifier = Sequential(
+            Linear(width_fe, int(width_fe/2)),
+            ReLU(),# Added 25/09
+            Dropout(p=args.dropout),# Added 25/09
+            Linear(int(width_fe/2), 1),# Added 25/09
+            Sigmoid()
+        )
+    def forward(self, x):
+        """
+        Input x of size NxF where :
+            * F is the dimension of feature space
+            * N is number of patche
+        """
+
+        f = self.feature_extractor(x)
+        w = self.weight_extractor(f)
+        w = torch.transpose(w, -1, -2)
+        slide = torch.matmul(w, f) # Slide representation, weighted sum of the patches
         out = self.classifier(slide)
         out = out.squeeze(-1).squeeze(-1)
 
@@ -412,36 +548,38 @@ if __name__ == '__main__':
     curie = '/mnt/data4/tlazard/data/curie/curie_recolo_tiled/imagenet/size_256/res_1/mat/353536B_embedded.npy'
     tcga = '/mnt/data4/tlazard/AutomaticWSI/outputs/tcga_all_auto_mask/tiling/imagenet/1/mat_pca/image_tcga_2.npy'
     #slide = torch.Tensor(np.load(tcga)).unsqueeze(0)
-    batch_size = 2 
+    batch_size = 16
     nb_tiles = 100
-    feature_depth = 512
+    feature_depth = 256
     slide = torch.rand((batch_size, nb_tiles, feature_depth))
     res = torchvision.models.resnet18()
     args = {'feature_depth': feature_depth,
             'dropout':0,
             'in_shape': 256,
-            'model_name': 'transformermil',
+            'model_name': 'attentionmil',
             'constant_size':True,
             'features_net': 'resnet',
             'batch_size': batch_size,
             'nb_tiles' : nb_tiles,
             'embedded': 1,
-            'ntrans':4
+            'ntrans':4,
+            'num_heads':1
             }
     args = Namespace(**args)
     model = MILGene(args)
+    model(slide)
     
-    to_hook =  set(['layers.0.linear1.weight', 'classifier.0.weight', 'layers.1.linear1.weight', 'layers.2.linear1.weight'])
-
-    ## Hook ! 
-    place_hook(model, to_hook)
-    slide1 = slide + 1 
-    slide1.retain_grad()
-    x = model(slide1)
-    x=x.squeeze()
-    loss = torch.nn.BCELoss()(x, torch.ones(2))
-    loss.backward()
-    print('over')
-    #model.eval()
-    #output = model(slide)
-
+#    to_hook =  set(['layers.0.linear1.weight', 'classifier.0.weight', 'layers.1.linear1.weight', 'layers.2.linear1.weight'])
+#
+#    ## Hook ! 
+#    place_hook(model, to_hook)
+#    slide1 = slide + 1 
+#    slide1.retain_grad()
+#    x = model(slide1)
+#    x=x.squeeze()
+#    loss = torch.nn.BCELoss()(x, torch.ones(2))
+#    loss.backward()
+#    print('over')
+#    #model.eval()
+#    #output = model(slide)
+#
