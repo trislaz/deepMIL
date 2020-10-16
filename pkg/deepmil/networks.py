@@ -5,16 +5,15 @@ use of pytorch.
 import functools
 from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity, MaxPool2d, Conv3d,
                       Sigmoid, Conv1d, Conv2d, ReLU, Dropout, BatchNorm1d, BatchNorm2d, InstanceNorm1d, 
-                      MaxPool3d, functional, LayerNorm, MultiheadAttention)
+                      MaxPool3d, functional, LayerNorm, MultiheadAttention, LogSoftmax)
 from torch.nn.modules import TransformerEncoder, TransformerEncoderLayer
 from torch.nn.parameter import Parameter
 import torch
 from torch.nn.init import (xavier_normal_, xavier_uniform_, constant_)
 import torch.nn.functional as F
 from torchvision import transforms
+import numpy as np
 import torchvision
-
-F.multi_head_attention_forward
 
 def deprecate_in_favor_of(new_name):
     def deprecated(func):
@@ -87,7 +86,97 @@ class MultiHeadAttention(Module):
         #x = F.softmax(x, dim=-2)
         return x
  
- 
+       
+
+
+class MultiHeadedAttentionMIL_multiclass(Module):
+    """
+    Implements deepMIL while taking 1D vectors as instances (output of resnet for example)
+    Bags are then NxF matrices, F the feature number (usually 2048), N the number of instances of the bag.
+    A utiliser avec NLLLoss
+    """
+
+    ## Change in other functions
+    # atn_dim = dim attention.
+    # num_heads = nombre de tete chercheuses 
+    # num_class = nombre de classes. 
+
+    def __init__(self, args):
+        super(MultiHeadedAttentionMIL_multiclass, self).__init__()
+        self.dropout = args.dropout
+        width_fe = is_in_args(args, 'width_fe', 64)
+        atn_dim = is_in_args(args, 'atn_dim', 256)
+        self.feature_depth = is_in_args(args, 'feature_depth', 512)
+        self.num_heads = is_in_args(args, 'num_heads', 1)
+        self.num_class = is_in_args(args, 'num_class', 2)
+        self.dim_heads = atn_dim // self.num_heads
+        assert self.dim_heads * self.num_heads == atn_dim, "atn_dim must be divisible by num_heads"
+
+        self.attention = Sequential(
+            MultiHeadAttention(args),
+            Softmax(dim=-2)
+        )
+
+        self.classifier = Sequential(
+            Linear(int(args.feature_depth * self.num_heads), width_fe),
+            ReLU(),# Added 25/09
+            Dropout(p=args.dropout),# Added 25/09
+            Linear(width_fe, self.num_class),# Added 25/09
+            LogSoftmax(dim=-1)
+        )
+
+    def forward(self, x):
+        """
+        Input x of size NxF where :
+            * F is the dimension of feature space
+            * N is number of patche
+        """
+        bs, nbt, _ = x.shape
+        w = self.attention(x) # (bs, nbt, nheads)
+        w = torch.transpose(w, -1, -2) # (bs, nheads, nbt)
+        slide = torch.matmul(w, x) # Slide representation, shape (bs, nheads, nfeatures)
+        slide = slide.flatten(1, -1) # (bs, nheads*nfeatures)
+        out = self.classifier(slide)
+        out = out.view((bs, self.num_class))
+        return out
+
+class MultiHeadMulticlassMIL_CONAN(MultiHeadedAttentionMIL_multiclass):
+    """
+    Instantiate a multiheadmulticlass mil-conan.
+    Multihead attention mil with conan aggregation.
+    Needs a 'k' inside args. giving the top-K vectors to use.
+    Means that it cant be used 
+    """
+    def __init__(self, args):
+        super(MultiHeadMulticlassMIL_CONAN, self).__init__(args)
+        self.k = args.k
+
+    def forward(self, x):
+        """
+        Input x of size NxF where :
+            * F is the dimension of feature space
+            * N is number of patche
+        """
+        bs, nbt, _ = x.shape
+        k = np.min((nbt, self.k))
+        w = self.attention(x) # (bs, nbt, nheads)
+        scores, indices = torch.topk(w, k, 1) # scores, indices = (bs, k, nheads) and x = (bs, nbt, num_features)
+        indices = indices.unsqueeze(-2) # adds the features dimension, for selection.
+        indices = torch.cat([indices] * self.feature_depth, dim=-2) # indices = (bs, k, num_features, nheads)
+        x_top = torch.cat([torch.gather(x, 1, indices[:,:,:,y]).unsqueeze(1) for y in range(self.num_heads)], 1) # slide : (bs,nheads, k, num_features) stacks the heads repr on the dim 1
+        x_top = x_top.flatten(0,1) #( bs*nheads, k, num_features )
+
+        scores = torch.transpose(scores, -1, -2)# (bs, nheads, nbt)
+        scores = scores.unsqueeze(-2)
+        scores = scores.flatten(0,1) # (bs*nhead, 1, k)
+        scores = F.softmax(scores, dim=-1)
+
+        slide = torch.matmul(scores, x_top)
+        slide = slide.view(bs, self.num_heads, self.feature_depth)
+        slide = slide.flatten(1, -1) # (bs, nheads*nfeatures)
+        out = self.classifier(slide)
+        out = out.view((bs, self.num_class))
+        return out
 
 class MultiHeadedAttentionMIL(Module):
     """
@@ -105,12 +194,13 @@ class MultiHeadedAttentionMIL(Module):
         width_fe = is_in_args(args, 'width_fe', 64)
         atn_dim = is_in_args(args, 'atn_dim', 256)
         self.num_heads = is_in_args(args, 'num_heads', 1)
+        self.feature_depth = is_in_args(args, 'feature_depth', 512)
         self.dim_heads = atn_dim // self.num_heads
         assert self.dim_heads * self.num_heads == atn_dim, "atn_dim must be divisible by num_heads"
 
         self.attention = Sequential(
-            MultiHeadAttention(args),
-            Softmax(dim=-2)
+            MultiHeadAttention(args)
+#            Softmax(dim=-2)
         )
 
         self.classifier = Sequential(
@@ -130,8 +220,9 @@ class MultiHeadedAttentionMIL(Module):
             * F is the dimension of feature space
             * N is number of patche
         """
-        bs, nbt, _ = x.shape
+        bs, nbt, _ = x.shape #x : (bs, nbt, nfeatures)
         w = self.attention(x) # (bs, nbt, nheads)
+        w = F.softmax(x, dim=-2)
         w = torch.transpose(w, -1, -2) # (bs, nheads, nbt)
         slide = torch.matmul(w, x) # Slide representation, shape (bs, nheads, nfeatures)
         slide = slide.flatten(1, -1) # (bs, nheads*nfeatures)
@@ -508,6 +599,8 @@ class TransformerMIL(Module):
 class MILGene(Module):
     models = {'attentionmil': AttentionMILFeatures, 
                 'multiheadmil': MultiHeadedAttentionMIL,
+                'multiheadmulticlass': MultiHeadedAttentionMIL_multiclass,
+                'mhmc_conan': MultiHeadMulticlassMIL_CONAN,
                 'conan': Conan, 
                 '1s': model1S, 
                 'sa': SelfAttentionMIL,

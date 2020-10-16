@@ -1,7 +1,8 @@
 """
 implementing models. DeepMIL implements a models that classify a whole slide image
 """
-from torch.nn import BCELoss
+
+from torch.nn import BCELoss, NLLLoss
 from torch.optim import Adam
 import torch
 import numpy as np
@@ -26,29 +27,67 @@ class DeepMIL(Model):
     Class implementing a Deep MIL framwork. different Models a define upstairs
     """
 
-    def __init__(self, args):
+    def __init__(self, args, weights=None):
         super(DeepMIL, self).__init__(args)
         self.results_val = {'scores': [],
                             'y_true': []}
         self.mean_train_loss = 0
         self.mean_val_loss = 0
         self.target_correspondance = [] # Useful when writing the results
+        self.weights = weights
+        self.model_name = args.model_name
         self.network = self._get_network()
-        self.criterion = BCELoss()
-        optimizer = Adam(self.network.parameters(), lr=args.lr)
+        self.criterion = self._get_criterion(args.model_name)
+        optimizer = self._get_optimizer(args)
         self.optimizers = [optimizer]
-        self.get_schedulers()
+        self._get_schedulers(args)
 
     def _get_network(self):
         net = MILGene(self.args)       
         net = net.to(self.args.device)
         return net
+
+    def _get_schedulers(self, args):
+        """Can be called after having define the optimizers (list-like)
+        """
+        if args.lr_scheduler == 'linear':
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau
+            self.schedulers = [scheduler(optimizer=o, patience=self.args.patience_lr, factor=0.3) for o in self.optimizers]
+        if args.lr_scheduler == 'cos':
+            self.schedulers = [torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=o, T_0=1, T_mult=2) for o in self.optimizers]
+
+    def _get_optimizer(self, args):
+        if args.optimizer == 'adam':
+            optimizer = Adam(self.network.parameters(), lr=args.lr)
+        if args.optimizer == 'sgd':
+            optimizer = torch.optim.SGD(self.network.parameters(), args.lr,
+                                momentum=0.9,
+                                weight_decay=1e-4)
+        return optimizer
+
+    def _get_criterion(self, model):
+        if model == 'attentionmil':
+            criterion = BCELoss(weight=self.weights).to(self.args.device)
+        elif model == 'multiheadmulticlass' or model == 'mhmc_conan':
+            criterion = NLLLoss(weight=self.weights).to(self.args.device)
+        return criterion
     
     def _forward_no_grad(self, x):
         with torch.no_grad():
             out = self.network(x)
         out = out.detach().cpu()
         return out
+
+    def _to_pseudo_proba(self, out):
+        """
+        Transform the output of the network into a pseudo-proba.
+        Depends on the network used : multiheadmulticlass is ended with a 
+        LOGsoftmax, the others directly with the softmax.
+        """
+        if self.model_name == 'multiheadmulticlass':
+            return np.exp(out)
+        else:
+            return out
 
     def _keep_best_metrics(self, metrics):
         factor = self.args.sgn_metric 
@@ -74,17 +113,19 @@ class DeepMIL(Model):
         return val_metrics
 
     def _compute_metrics(self, scores, y_true):
-        report = metrics.classification_report(y_true=y_true, y_pred=scores.round(), output_dict=True, zero_division=0)
+        report = metrics.classification_report(y_true=y_true, y_pred=np.argmax(scores, axis=-1), output_dict=True, zero_division=0)
         metrics_dict = {'accuracy': report['accuracy'], "precision": report['weighted avg']['precision'], 
             "recall": report['weighted avg']['recall'], "f1-score": report['weighted avg']['f1-score']}
-        metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores)
+        if self.args.num_class <= 2:
+            metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores)
         return metrics_dict
 
     def predict(self, x):
         x = x.to(self.args.device)
-        proba = self._forward_no_grad(x)
-        pred = proba.round()
-        return proba.numpy(), pred.numpy()
+        proba = self._to_pseudo_proba(self._forward_no_grad(x))
+        _, pred = torch.max(proba, -1)
+        pred = self.target_correspondance[int(pred.item())]
+        return proba.numpy(), pred
 
     def evaluate(self, x, y):
         """
@@ -94,9 +135,9 @@ class DeepMIL(Model):
         y = y.to(self.args.device)
         x = x.to(self.args.device)
         scores = self._forward_no_grad(x)
-        y = y.to('cpu')
-        loss = self.criterion(scores, y.float())       
-        self.results_val['scores'] += list(scores.numpy())
+        y = y.to('cpu', dtype=torch.int64)
+        loss = self.criterion(scores, y)       
+        self.results_val['scores'] += list(self._to_pseudo_proba(scores.numpy()))
         self.results_val['y_true'] += list(y.cpu().numpy())
         return loss.detach().cpu().item()
 
@@ -108,9 +149,9 @@ class DeepMIL(Model):
         self.set_zero_grad()
         if self.args.constant_size: # We can process a batch as a whole big tensor
             input_batch = input_batch.to(self.args.device)
-            target_batch = target_batch.to(self.args.device)
+            target_batch = target_batch.to(self.args.device, dtype=torch.int64)
             output = self.forward(input_batch)
-            loss = self.criterion(output, target_batch.float())
+            loss = self.criterion(output, target_batch)
             loss.backward()
 
         else: # We have to process a batch as a list of tensors (of different sizes)

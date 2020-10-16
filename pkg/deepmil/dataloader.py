@@ -7,6 +7,7 @@ import torch
 from tiler_wsi.tile_retriever.tile_sampler import TileSampler
 from torchvision import transforms
 from sklearn.model_selection import StratifiedShuffleSplit
+from collections import Counter
 import os
 
 class FolderWSI(Dataset):
@@ -98,7 +99,7 @@ class FolderWSI(Dataset):
         if 'test' in table.columns and (not self.predict):
             is_in_train = (table[table['ID'] == slide]['test'] != self.args.test_fold).values[0] if is_in_db else False # "keep if i'm not test"
             is_in_test = (table[table['ID'] == slide]['test'] == self.args.test_fold).values[0] if is_in_db else False
-            is_in_db = is_in_train if self.args.train else is_in_test
+            is_in_db = is_in_train if self.train else is_in_test
         return is_in_db
 
     def _select_tiles(self, slide, tiles):
@@ -229,7 +230,7 @@ class EmbededWSI(Dataset):
         if 'test' in table.columns and (not self.predict):
             is_in_train = (table[table['ID'] == name]['test'] != self.args.test_fold).values[0] if is_in_db else False # "keep if i'm not test"
             is_in_test = (table[table['ID'] == name]['test'] == self.args.test_fold).values[0] if is_in_db else False
-            is_in_db = is_in_train if self.args.train else is_in_test
+            is_in_db = is_in_train if self.train else is_in_test
         return is_in_db
 
     def __len__(self):
@@ -274,20 +275,41 @@ def collate_variable_size(batch):
 
 class Dataset_handler:
     def __init__(self, args, predict=False):
+        """
+        Generates a validation dataset and a training dataset.
+        If predict=True, the training dataset contains all the dataset.
+        """
         self.args = args
+        self.num_class = args.num_class
         self.predict = predict
         self.joint_tiles = 1
         self.num_workers = args.num_workers 
         self.embedded = args.embedded
         self.dataset_train = self._get_dataset(train=True)
+        self.weights = self._get_weights(self.dataset_train)
         self.dataset_val = self._get_dataset(train=False)
         self.train_sampler, self.val_sampler = self._get_sampler(self.dataset_train)
 
+    def _get_weights(self, dataset):
+        """
+        computes the weigths of each class, in order to weight the loss.
+        """
+        labels = [x[1] for x in dataset]
+        counts = Counter(labels)
+        weights = []
+        for i in range(self.num_class):
+            weights.append(counts[i]/len(labels))
+        return torch.Tensor(weights)
+
     def get_loader(self, training):
+        """
+        If training == False, therefore we are predictig : then taking the dataset_val
+        that takes all the tiles, without a sampler (taking all the dataset)
+        """
         if training:
             collate = None if self.args.constant_size else collate_variable_size
             dataloader_train = DataLoader(dataset=self.dataset_train, batch_size=self.args.batch_size, sampler=self.train_sampler, num_workers=self.num_workers, collate_fn=collate, drop_last=True)
-            dataloader_val = DataLoader(dataset=self.dataset_val, batch_size=1, sampler=self.val_sampler, num_workers=self.num_workers)
+            dataloader_val = DataLoader(dataset=self.dataset_train, batch_size=1, sampler=self.val_sampler, num_workers=self.num_workers)
             dataloaders = (dataloader_train, dataloader_val) 
         else: # Testing on the whole dataset
             dataloaders = DataLoader(dataset=self.dataset_val, batch_size=1, num_workers=self.num_workers)

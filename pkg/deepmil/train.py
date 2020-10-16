@@ -46,6 +46,7 @@ def train(model, dataloader):
     for input_batch, target_batch in dataloader:
         model.counter["batch"] += 1
         model.counter['epoch'] += epobatch
+        [scheduler.step(model.counter['epoch']) for scheduler in model.schedulers]
         loss = model.optimize_parameters(input_batch, target_batch)
         mean_loss.append(loss)
     model.mean_train_loss = np.mean(mean_loss)
@@ -74,6 +75,7 @@ def main():
     data = Dataset_handler(args)
     dataloader_train, dataloader_val = data.get_loader(training=True)
     model.dataset = dataloader_train.dataset
+    model.target_correspondance = model.dataset.target_correspondance
     while model.counter['epoch'] < args.epochs:
         t.start()
         print("Epochs {}".format(round(model.counter['epoch'])))
