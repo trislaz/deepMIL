@@ -85,9 +85,6 @@ class MultiHeadAttention(Module):
         x = x.view(bs, nbt, -1) # shape (bs, nbt, nheads) 
         #x = F.softmax(x, dim=-2)
         return x
- 
-       
-
 
 class MultiHeadedAttentionMIL_multiclass(Module):
     """

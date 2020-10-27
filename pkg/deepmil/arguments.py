@@ -18,6 +18,7 @@ def get_arguments(train=True, config=None):
     parser.add_argument("--test_fold",type=int, help="number of the fold used as a test")
     parser.add_argument("--in_shape", type=int, default=32, help='size of the input tile, used if embedded=0')
     parser.add_argument('--sampler', type=str, help='type of tile sampler. dispo : random_sampler | random_biopsie', default='random_sampler')
+    parser.add_argument('--val_sampler', type=str, help='sampler used for validation. Avail all | predmap_random | predmap_all', default='all')
     parser.add_argument('--resolution', type=int, help='level of resolution', default=2)
     # Data & model (in_layer)
     parser.add_argument('--embedded', type=int, default=1,
@@ -45,6 +46,8 @@ def get_arguments(train=True, config=None):
     parser.add_argument('-k', type=int, help='number of selected tiles for the topk procedure (either when validating, or when training, with mhmc_conan)', default=5)
     parser.add_argument('--optimizer', type=str, default='adam')
     parser.add_argument('--lr_scheduler', type=str, default='linear')
+    parser.add_argument('--criterion', type=str, help='criterion used', default=None)
+    parser.add_argument('--error_table', type=str, help='path to the error table', default=None)
 
 
     if not train: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
@@ -77,6 +80,9 @@ def get_arguments(train=True, config=None):
         args.sgn_metric = 1
     else:
         args.sgn_metric = -1
+
+    if args.model_name == 'multiheadmulticlass' and args.criterion is None:
+        args.criterion = 'nll'
 
     if args.patience_lr is None:
         args.patience_lr = args.epochs

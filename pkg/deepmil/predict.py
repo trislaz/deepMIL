@@ -25,8 +25,10 @@ def load_model(model_path, device):
     args.target_correspondance = checkpoint['dataset'].target_correspondance
     args.device = device
     args.optimizer, args.lr_scheduler = 'adam', 'cos'
-    #args.model_name = 'mhmc_conan' # Try conan at the test state
-    #args.k = 5
+ #   args.model_name = 'mhmc_conan' # Try conan at the test state
+ #   args.k = 50
+    args.val_sampler = 'predmap_random'
+    args.nb_tiles = 150
     model = DeepMIL(args)
     model.network.load_state_dict(checkpoint['state_dict'])
     model.target_correspondance = checkpoint['dataset'].target_correspondance

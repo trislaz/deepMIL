@@ -22,6 +22,42 @@ from .model_base import Model
 # TODO As in dataloader.py, make a list of the arguments that have to be in the Namespace.
 ##
 
+class CostSensitiveLoss:
+    def __init__(self, error_table, device, C):
+        """
+        error_table gives the path to the error table, or None
+        C  is int, gives the number of classes
+        """
+        error_table = self._extract_error_table(error_table, C)
+        self.error_table = torch.Tensor(error_table).to(device)
+        self.device = device
+        self.C = C
+
+    def _get_error_vectors(self, y):
+        ev = [self.error_table[x,:].unsqueeze(0) for x in y]
+        ev = torch.cat(ev)
+        return ev.to(self.device)
+
+    def __call__(self, x, y):
+        x = torch.exp(x) # to proba
+        nc = x.shape[-1] 
+        y_oh = torch.nn.functional.one_hot(y, self.C).to(self.device)
+        e_t = self._get_error_vectors(y)
+        x = x-y_oh
+        x = x * e_t
+        x = x ** 2
+        return torch.mean(torch.mean(x, -1))
+
+    def _extract_error_table(self, error_table, C):
+        if error_table is None:
+            E_T = torch.ones((C,C))
+        else:
+            e_t = np.load(error_table)
+            s_et = e_t.sum(axis=0)
+            E_T = e_t + np.identity(e_t.shape[0]) * s_et
+        return E_T
+
+
 class DeepMIL(Model):
     """
     Class implementing a Deep MIL framwork. different Models a define upstairs
@@ -37,7 +73,8 @@ class DeepMIL(Model):
         self.weights = weights
         self.model_name = args.model_name
         self.network = self._get_network()
-        self.criterion = self._get_criterion(args.model_name)
+        self.error_table = args.error_table
+        self.criterion = self._get_criterion(args.criterion)
         optimizer = self._get_optimizer(args)
         self.optimizers = [optimizer]
         self._get_schedulers(args)
@@ -46,6 +83,7 @@ class DeepMIL(Model):
         net = MILGene(self.args)       
         net = net.to(self.args.device)
         return net
+
 
     def _get_schedulers(self, args):
         """Can be called after having define the optimizers (list-like)
@@ -65,17 +103,19 @@ class DeepMIL(Model):
                                 weight_decay=1e-4)
         return optimizer
 
-    def _get_criterion(self, model):
-        if model == 'attentionmil':
+    def _get_criterion(self, criterion):
+        if criterion == 'bce':
             criterion = BCELoss(weight=self.weights).to(self.args.device)
-        elif model == 'multiheadmulticlass' or model == 'mhmc_conan':
+        if criterion == 'nll':
             criterion = NLLLoss(weight=self.weights).to(self.args.device)
+        elif criterion == 'mse':
+            criterion = CostSensitiveLoss(self.error_table, self.args.device, self.args.num_class)
         return criterion
     
     def _forward_no_grad(self, x):
         with torch.no_grad():
             out = self.network(x)
-        out = out.detach().cpu()
+        out = out.detach()
         return out
 
     def _to_pseudo_proba(self, out):
@@ -84,7 +124,7 @@ class DeepMIL(Model):
         Depends on the network used : multiheadmulticlass is ended with a 
         LOGsoftmax, the others directly with the softmax.
         """
-        if self.model_name == 'multiheadmulticlass':
+        if self.model_name in ['multiheadmulticlass', 'mhmc_conan']:
             return np.exp(out)
         else:
             return out
@@ -122,7 +162,7 @@ class DeepMIL(Model):
 
     def predict(self, x):
         x = x.to(self.args.device)
-        proba = self._to_pseudo_proba(self._forward_no_grad(x))
+        proba = self._to_pseudo_proba(self._forward_no_grad(x).cpu())
         _, pred = torch.max(proba, -1)
         pred = self.target_correspondance[int(pred.item())]
         return proba.numpy(), pred
@@ -132,11 +172,12 @@ class DeepMIL(Model):
         takes x, y torch.Tensors.
         Predicts on x, stores y and the loss.
         """
-        y = y.to(self.args.device)
+        y = y.to(self.args.device, dtype=torch.int64)
         x = x.to(self.args.device)
         scores = self._forward_no_grad(x)
-        y = y.to('cpu', dtype=torch.int64)
         loss = self.criterion(scores, y)       
+        y = y.to('cpu', dtype=torch.int64)
+        scores = scores.to('cpu')
         self.results_val['scores'] += list(self._to_pseudo_proba(scores.numpy()))
         self.results_val['y_true'] += list(y.cpu().numpy())
         return loss.detach().cpu().item()
@@ -158,7 +199,7 @@ class DeepMIL(Model):
             loss = 0
             for o, im in enumerate(input_batch):
                 im = im.to(self.args.device)
-                target = target_batch[o].to(self.args.device)
+                target = target_batch[o].to(self.args.device, dtype=torch.int64)
                 output = self.forward(im)
                 loss += self.criterion(output, target.float())
             loss = loss/len(input_batch)
