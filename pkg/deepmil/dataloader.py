@@ -264,7 +264,7 @@ class EmbededWSI(Dataset):
         """
         if self.train & self.constant_size:
             sampler = self.sampler_dict[path]
-            indices = getattr(sampler, self.args.sampler)(nb_tiles=self.args.nb_tiles)
+            indices = getattr(sampler, self.args.sampler+'_sampler')(nb_tiles=self.args.nb_tiles)
             mat = mat[indices, :]
         else:
             sampler = self.sampler_dict[path]

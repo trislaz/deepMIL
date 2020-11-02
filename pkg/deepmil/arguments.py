@@ -49,6 +49,8 @@ def get_arguments(train=True, config=None):
     parser.add_argument('--criterion', type=str, help='criterion used', default=None)
     parser.add_argument('--error_table', type=str, help='path to the error table', default=None)
 
+    parser.add_argument('--n_layers_classif', type=int, help='number of the internal layers of the classifier - works with model_name = mhmc_layers')
+
 
     if not train: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
         parser.add_argument("--model_path", type=str, help="Path to the model to load")
@@ -92,6 +94,10 @@ def get_arguments(train=True, config=None):
     config_str = yaml.dump(dictio)
     with open('./config.yaml', 'w') as config_file:
         config_file.write(config_str)
+
+    if (args.criterion =='sosr') and (args.model_name == 'mhmc_layers'):
+        print('Be careful, the output of mhmc_layers is logsoftmax, you need a linear output to use the \
+                sosr criterion !')
       
     return args
 

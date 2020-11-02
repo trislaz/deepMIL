@@ -34,7 +34,8 @@ def test(model, dataloader):
     return results 
 
 def main(model_path=None,  w=False):
-    model = load_model(model_path)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    model = load_model(model_path, device)
     args = model.args
     args.train = False
     data = Dataset_handler(args)

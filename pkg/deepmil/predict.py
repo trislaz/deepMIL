@@ -22,16 +22,12 @@ def load_model(model_path, device):
     """
     checkpoint = torch.load(model_path, map_location='cpu')
     args = checkpoint['args']
-    args.target_correspondance = checkpoint['dataset'].target_correspondance
     args.device = device
     args.optimizer, args.lr_scheduler = 'adam', 'cos'
  #   args.model_name = 'mhmc_conan' # Try conan at the test state
  #   args.k = 50
-    args.val_sampler = 'predmap_random'
-    args.nb_tiles = 150
-    model = DeepMIL(args)
+    model = DeepMIL(args, target_correspondance=checkpoint['target_correspondance'])
     model.network.load_state_dict(checkpoint['state_dict'])
-    model.target_correspondance = checkpoint['dataset'].target_correspondance
     model.network.eval()
     return model
 

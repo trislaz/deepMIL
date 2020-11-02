@@ -70,17 +70,13 @@ def val(model, dataloader):
 def main():
     t = Timer()
     args = get_arguments(train=True)
-    model = DeepMIL(args=args)
+    model = DeepMIL(args=args, with_data=True)
     model.get_summary_writer()
-    data = Dataset_handler(args)
-    dataloader_train, dataloader_val = data.get_loader(training=True)
-    model.dataset = dataloader_train.dataset
-    model.target_correspondance = model.dataset.target_correspondance
     while model.counter['epoch'] < args.epochs:
         t.start()
         print("Epochs {}".format(round(model.counter['epoch'])))
-        train(model=model, dataloader=dataloader_train)
-        val(model=model, dataloader=dataloader_val)
+        train(model=model, dataloader=model.train_loader)
+        val(model=model, dataloader=model.val_loader)
         t.stop()
         if model.early_stopping.early_stop:
             break

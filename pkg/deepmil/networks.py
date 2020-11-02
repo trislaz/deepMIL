@@ -5,7 +5,7 @@ use of pytorch.
 import functools
 from torch.nn import (Linear, Module, Sequential, LeakyReLU, Tanh, Softmax, Identity, MaxPool2d, Conv3d,
                       Sigmoid, Conv1d, Conv2d, ReLU, Dropout, BatchNorm1d, BatchNorm2d, InstanceNorm1d, 
-                      MaxPool3d, functional, LayerNorm, MultiheadAttention, LogSoftmax)
+                      MaxPool3d, functional, LayerNorm, MultiheadAttention, LogSoftmax, ModuleList)
 from torch.nn.modules import TransformerEncoder, TransformerEncoderLayer
 from torch.nn.parameter import Parameter
 import torch
@@ -121,6 +121,123 @@ class MultiHeadedAttentionMIL_multiclass(Module):
             Linear(width_fe, self.num_class),# Added 25/09
             LogSoftmax(dim=-1)
         )
+
+    def forward(self, x):
+        """
+        Input x of size NxF where :
+            * F is the dimension of feature space
+            * N is number of patche
+        """
+        bs, nbt, _ = x.shape
+        w = self.attention(x) # (bs, nbt, nheads)
+        w = torch.transpose(w, -1, -2) # (bs, nheads, nbt)
+        slide = torch.matmul(w, x) # Slide representation, shape (bs, nheads, nfeatures)
+        slide = slide.flatten(1, -1) # (bs, nheads*nfeatures)
+        out = self.classifier(slide)
+        out = out.view((bs, self.num_class))
+        return out
+
+class LinearBatchNorm(Module):
+    def __init__(self, in_features, out_features, dropout):
+        super(LinearBatchNorm, self).__init__()
+        self.block = Sequential(
+            Linear(in_features, out_features),
+            ReLU(),# Added 25/09
+            Dropout(p=dropout),# Added 25/09
+            BatchNorm1d(out_features)
+                )
+    def forward(self, x):
+        x = self.block(x)
+        return x
+
+class MultiHeadedAttentionMIL_multiclass_plus(Module):
+    """
+    Same as MultiHeadedAttentionMIL_multiclass but have a classifier with N 
+    Linear layers. 
+    N is parametrized by args by args.n_layers_classif
+    """
+
+    ## Change in other functions
+    # atn_dim = dim attention.
+    # num_heads = nombre de tete chercheuses 
+    # num_class = nombre de classes. 
+
+    def __init__(self, args):
+        super(MultiHeadedAttentionMIL_multiclass_plus, self).__init__()
+        self.dropout = args.dropout
+        width_fe = is_in_args(args, 'width_fe', 64)
+        atn_dim = is_in_args(args, 'atn_dim', 256)
+        self.feature_depth = is_in_args(args, 'feature_depth', 512)
+        self.num_heads = is_in_args(args, 'num_heads', 1)
+        self.num_class = is_in_args(args, 'num_class', 2)
+        self.n_layers_classif = is_in_args(args, 'n_layers_classif', 1)
+        self.dim_heads = atn_dim // self.num_heads
+        assert self.dim_heads * self.num_heads == atn_dim, "atn_dim must be divisible by num_heads"
+
+        self.attention = Sequential(
+            MultiHeadAttention(args),
+            Softmax(dim=-2)
+        )
+
+        classifier = []
+        classifier.append(LinearBatchNorm(int(args.feature_depth * self.num_heads), width_fe, args.dropout))
+        for i in range(self.n_layers_classif):
+            classifier.append(LinearBatchNorm(width_fe, width_fe, args.dropout))
+        classifier.append(Linear(width_fe, self.num_class))
+        classifier.append(LogSoftmax(-1))
+        self.classifier = Sequential(*classifier)
+
+    def forward(self, x):
+        """
+        Input x of size NxF where :
+            * F is the dimension of feature space
+            * N is number of patche
+        """
+        bs, nbt, _ = x.shape
+        w = self.attention(x) # (bs, nbt, nheads)
+        w = torch.transpose(w, -1, -2) # (bs, nheads, nbt)
+        slide = torch.matmul(w, x) # Slide representation, shape (bs, nheads, nfeatures)
+        slide = slide.flatten(1, -1) # (bs, nheads*nfeatures)
+        out = self.classifier(slide)
+        out = out.view((bs, self.num_class))
+        return out
+
+
+class MultiHeadedAttentionMIL_multiclass_plus_reg(Module):
+    """
+    Same as MultiHeadedAttentionMIL_multiclass but have a classifier with N 
+    Linear layers. 
+    N is parametrized by args by args.n_layers_classif
+    """
+
+    ## Change in other functions
+    # atn_dim = dim attention.
+    # num_heads = nombre de tete chercheuses 
+    # num_class = nombre de classes. 
+
+    def __init__(self, args):
+        super(MultiHeadedAttentionMIL_multiclass_plus_reg, self).__init__()
+        self.dropout = args.dropout
+        width_fe = is_in_args(args, 'width_fe', 64)
+        atn_dim = is_in_args(args, 'atn_dim', 256)
+        self.feature_depth = is_in_args(args, 'feature_depth', 512)
+        self.num_heads = is_in_args(args, 'num_heads', 1)
+        self.num_class = is_in_args(args, 'num_class', 2)
+        self.n_layers_classif = is_in_args(args, 'n_layers_classif', 1)
+        self.dim_heads = atn_dim // self.num_heads
+        assert self.dim_heads * self.num_heads == atn_dim, "atn_dim must be divisible by num_heads"
+
+        self.attention = Sequential(
+            MultiHeadAttention(args),
+            Softmax(dim=-2)
+        )
+
+        classifier = []
+        classifier.append(LinearBatchNorm(int(args.feature_depth * self.num_heads), width_fe, args.dropout))
+        for i in range(self.n_layers_classif):
+            classifier.append(LinearBatchNorm(width_fe, width_fe, args.dropout))
+        classifier.append(Linear(width_fe, self.num_class))
+        self.classifier = Sequential(*classifier)
 
     def forward(self, x):
         """
@@ -597,11 +714,14 @@ class MILGene(Module):
     models = {'attentionmil': AttentionMILFeatures, 
                 'multiheadmil': MultiHeadedAttentionMIL,
                 'multiheadmulticlass': MultiHeadedAttentionMIL_multiclass,
+                'mhmc_layers': MultiHeadedAttentionMIL_multiclass_plus,
+                'mhmc_layers_reg': MultiHeadedAttentionMIL_multiclass_plus_reg,
                 'mhmc_conan': MultiHeadMulticlassMIL_CONAN,
                 'conan': Conan, 
                 '1s': model1S, 
                 'sa': SelfAttentionMIL,
                 'transformermil': TransformerMIL}     
+
     def __init__(self, args):
         feature_extractor = {1: Identity, 
                              0: self._get_features_net}

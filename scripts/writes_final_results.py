@@ -12,10 +12,7 @@ def main():
     models_path = glob(os.path.join(args.path, 'model_best_test_*.pt.tar'), recursive=True)
     final_res = []
     for model in models_path:
-        try:
-            res = test.main(model_path=model)
-        except:
-            continue
+        res = test.main(model_path=model)
         final_res.append(res)
     df_res = pd.DataFrame(final_res)
     mean = df_res.mean(axis=0).to_frame().transpose()
