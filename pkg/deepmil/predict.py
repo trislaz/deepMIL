@@ -36,12 +36,12 @@ def predict_test(model_path=None, data_path=None,data_table=None):
     model = load_model(model_path, device)
     args = model.args
     if data_path is not None:
-        args.wsi = data_path
-        if data_table is not None:
-            args.table_data = data_table
-        else:
-            print("careful, you will try to get performance prediction on a new dataset, with the training labels")
-    data = Dataset_handler(model.args, predict=True)
+        args.wsi = os.path.join(data_path, 'res_1', 'mat_pca')
+    if data_table is not None:
+        args.table_data = data_table
+   #     else:
+   #         print("careful, you will try to get performance prediction on a new dataset, with the training labels")
+    data = Dataset_handler(args, predict=True)
     dataloader = data.get_loader(training=False)
     df = dataloader.dataset.table_data
     results = []
@@ -51,14 +51,14 @@ def predict_test(model_path=None, data_path=None,data_table=None):
         proba, y_hat = model.predict(x)
         id_im = os.path.splitext(os.path.basename(dataloader.dataset.files[o]))[0].split('_embedded')[0]
         serie = df[df['ID'] == id_im].to_dict('records')[0]
-        success = y_hat.item() == model.target_correspondance[y.item()]
-        r = {'prediction': y_hat.item(), 'gt': model.target_correspondance[y.item()], 'index':o,'success': success, 'pp0': proba[0][0], 'pp1': proba[0][1],'pp2': proba[0][2], 'pp3': proba[0][3]} # pp pour pseudo_proba
+        success = y_hat == model.target_correspondance[y.item()]
+        r = {'prediction': y_hat, 'gt': model.target_correspondance[y.item()], 'index':o,'success': success} # pp pour pseudo_proba
         r.update(serie) 
         results.append(r)
     results = pd.DataFrame(results)
-    results_test = results[results['test'] == model.args.test_fold]
-    predicted_labels = results_test['prediction'].values
-    true_labels = results_test['gt'].values
+    #results_test = results[results['test'] == model.args.test_fold]
+    predicted_labels = results['prediction'].values
+    true_labels = results['gt'].values
     confusion_mat = metrics.confusion_matrix(y_true=true_labels, y_pred=predicted_labels)
     return results, confusion_mat, dataloader.dataset.target_correspondance 
 
@@ -72,9 +72,10 @@ def predict(model_path, data_path):
         name = os.path.basename(wsi).replace('.npy', '.tif')
         wsi = preprocessing(wsi, device)
         proba, y_hat = model.predict(wsi)
-        results.append({'filename': name, 'pred': y_hat.item(), 'pp0': proba[0][0], 'pp1': proba[0][1],'pp2': proba[0][2], 'pp3': proba[0][3]})
+        results.append({'filename': name, 'pred': y_hat, 'pp0': proba[0][0], 'pp1': proba[0][1],'pp2': proba[0][2], 'pp3': proba[0][3]})
     results_df = pd.DataFrame(results)
     return results_df
+
 
 def preprocessing(wsi, device):
     wsi = np.load(wsi)

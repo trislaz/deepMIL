@@ -138,14 +138,22 @@ class MultiHeadedAttentionMIL_multiclass(Module):
         return out
 
 class LinearBatchNorm(Module):
-    def __init__(self, in_features, out_features, dropout):
+    def __init__(self, in_features, out_features, dropout, constant_size):
         super(LinearBatchNorm, self).__init__()
+        self.cs = constant_size
         self.block = Sequential(
             Linear(in_features, out_features),
             ReLU(),# Added 25/09
             Dropout(p=dropout),# Added 25/09
-            BatchNorm1d(out_features)
+            self.get_norm(constant_size, out_features),
                 )
+    def get_norm(self, constant_size, out_features):
+        if not constant_size:
+            norm = InstanceNorm1d(out_features)
+        else:
+            norm = BatchNorm1d(out_features)
+        return norm
+
     def forward(self, x):
         x = self.block(x)
         return x
@@ -164,6 +172,7 @@ class MultiHeadedAttentionMIL_multiclass_plus(Module):
 
     def __init__(self, args):
         super(MultiHeadedAttentionMIL_multiclass_plus, self).__init__()
+        self.args = args
         self.dropout = args.dropout
         width_fe = is_in_args(args, 'width_fe', 64)
         atn_dim = is_in_args(args, 'atn_dim', 256)
@@ -180,9 +189,9 @@ class MultiHeadedAttentionMIL_multiclass_plus(Module):
         )
 
         classifier = []
-        classifier.append(LinearBatchNorm(int(args.feature_depth * self.num_heads), width_fe, args.dropout))
+        classifier.append(LinearBatchNorm(int(args.feature_depth * self.num_heads), width_fe, args.dropout, args.constant_size))
         for i in range(self.n_layers_classif):
-            classifier.append(LinearBatchNorm(width_fe, width_fe, args.dropout))
+            classifier.append(LinearBatchNorm(width_fe, width_fe, args.dropout, args.constant_size))
         classifier.append(Linear(width_fe, self.num_class))
         classifier.append(LogSoftmax(-1))
         self.classifier = Sequential(*classifier)
@@ -198,10 +207,11 @@ class MultiHeadedAttentionMIL_multiclass_plus(Module):
         w = torch.transpose(w, -1, -2) # (bs, nheads, nbt)
         slide = torch.matmul(w, x) # Slide representation, shape (bs, nheads, nfeatures)
         slide = slide.flatten(1, -1) # (bs, nheads*nfeatures)
+        if not self.args.constant_size:
+            slide = slide.unsqueeze(-2)
         out = self.classifier(slide)
         out = out.view((bs, self.num_class))
         return out
-
 
 class MultiHeadedAttentionMIL_multiclass_plus_reg(Module):
     """
@@ -731,7 +741,10 @@ class MILGene(Module):
         self.mil = self.models[args.model_name](args)
 
     def forward(self, x):
-        batch_size, nb_tiles = x.shape[0], x.shape[1]
+        if self.args.constant_size:
+            batch_size, nb_tiles = x.shape[0], x.shape[1]
+        else:
+            batch_size, nb_tiles = 1, x.shape[-2]
         x = self._preprocess(x, self.args)
         x = self.features_instances(x)
         x = x.view(batch_size, nb_tiles, self.args.feature_depth)

@@ -1,4 +1,5 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import pandas as pd
 import torch
 import os
 import copy
@@ -42,7 +43,6 @@ def get_arguments(train=True, config=None):
     parser.add_argument('--write_config', action='store_true', help='writes config in the cwd.')
     parser.add_argument('--atn_dim', type=int, help='intermediate projection dimension during attention mechanism. must be divisible by num_heads.', default=256)
     parser.add_argument('--num_heads', help='number of attention_head', default= 1, type=int)
-    parser.add_argument('--num_class', type=int, help='number of classes - multiclass case', default=2)
     parser.add_argument('-k', type=int, help='number of selected tiles for the topk procedure (either when validating, or when training, with mhmc_conan)', default=5)
     parser.add_argument('--optimizer', type=str, default='adam')
     parser.add_argument('--lr_scheduler', type=str, default='linear')
@@ -50,7 +50,6 @@ def get_arguments(train=True, config=None):
     parser.add_argument('--error_table', type=str, help='path to the error table', default=None)
 
     parser.add_argument('--n_layers_classif', type=int, help='number of the internal layers of the classifier - works with model_name = mhmc_layers')
-
 
     if not train: # If test, nb_tiles = 0 (all tiles considered) and batc_size=1
         parser.add_argument("--model_path", type=str, help="Path to the model to load")
@@ -62,6 +61,8 @@ def get_arguments(train=True, config=None):
             dic = yaml.safe_load(f)
         args.__dict__.update(dic)
 
+    table = pd.read_csv(args.table_data)
+    args.num_class = len(set(table[args.target_name]))
     args.wsi = os.path.join(args.wsi, 'res_{}'.format(args.resolution))
     # Arguments processing : either adding arguments with simple rules (constant size for example)
     # Or adding fixed arguments

@@ -295,9 +295,11 @@ class DeepMIL(Model):
         metrics_dict = {'accuracy': report['accuracy'], "precision": report['weighted avg']['precision'], 
             "recall": report['weighted avg']['recall'], "f1-score": report['weighted avg']['f1-score']}
         if self.args.num_class <= 2:
-            metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores)
+            metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores[:,0])
         if self.cost_metric:
             metrics_dict['cost_metric'] = self.cost_metric(X=self._predict_function(scores), Y=y_true)
+        metrics_dict['epoch'] = self.counter['epoch']
+#        metrics_dict['data_size'] = len(self.train_loader) * self.args.batch_size
         return metrics_dict
 
     def predict(self, x):
@@ -341,7 +343,7 @@ class DeepMIL(Model):
                 im = im.to(self.args.device)
                 target = target_batch[o].to(self.args.device, dtype=torch.int64)
                 output = self.forward(im)
-                loss += self.criterion(output, target.float())
+                loss += self.criterion(output, target)
             loss = loss/len(input_batch)
             loss.backward()
 
@@ -357,12 +359,6 @@ class DeepMIL(Model):
                 'best_metrics': self.best_metrics, 
                 'target_correspondance': self.train_loader.dataset.target_correspondance}
         return dictio
-
-class DeepMILim(DeepMIL):
-    def __init__(self, args):
-        super(DeepMILim, self).__init__(args)
-        self.feature_extractor = {}
-
 
 
 

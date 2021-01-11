@@ -30,19 +30,19 @@ else:
     plt.ylabel('true label')
     
     ## For the datachallenge : computes the error with the error_table
-    error = 0
-    if args.error_table is not None:
-        error_table = np.load(args.error_table)
-        for i in range(confusion_mat.shape[0]):
-            for j in range(confusion_mat.shape[1]):
-                n = confusion_mat[i,j]
-                err_i, err_j = target_correspondance[i], target_correspondance[j]
-                error += error_table[err_i, err_j] * n
-        error = error / confusion_mat.sum()
+#    error = 0
+#    if args.error_table is not None:
+#        error_table = np.load(args.error_table)
+#        for i in range(confusion_mat.shape[0]):
+#            for j in range(confusion_mat.shape[1]):
+#                n = confusion_mat[i,j]
+#                err_i, err_j = target_correspondance[i], target_correspondance[j]
+#                error += error_table[err_i, err_j] * n
+#        error = error / confusion_mat.sum()
     
     model_name, _ = os.path.splitext(os.path.basename(args.model_path))
     root = os.path.dirname(args.model_path)
-    confu_path = os.path.join(root, 'testfold_{}_error_{}.jpg'.format(test, (1-error)))
-    csv_path= os.path.join(root, 'testfold_{}_error_{}.csv'.format(test, (1-error)))
+    confu_path = os.path.join(root, 'testfold_{}.jpg'.format(test))
+    csv_path= os.path.join(root, 'testfold_{}.csv'.format(test))
     plt.savefig(confu_path)
     df.to_csv(csv_path, index=False)
