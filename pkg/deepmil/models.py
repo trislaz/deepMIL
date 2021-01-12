@@ -156,8 +156,9 @@ class DeepMIL(Model):
         order of _constructors fucntions is important.
         """
         super(DeepMIL, self).__init__(args)
-        self.results_val = {'scores': [],
-                            'y_true': []}
+        self.results_val = {'proba_preds': [],
+                            'y_true': [],
+                            'preds':[]}
         self.mean_train_loss = 0
         self.mean_val_loss = 0
         self.target_correspondance = [] # Useful when writing the results
@@ -242,6 +243,10 @@ class DeepMIL(Model):
         else:
             return out
 
+    def _get_pred_pseudo_proba(self, scores):
+        proba = np.argmax(self._to_pseudo_proba(scores), axis=-1)
+        return proba
+
     def _keep_best_metrics(self, metrics):
         factor = self.args.sgn_metric 
         if self.best_ref_metric is None:
@@ -263,6 +268,7 @@ class DeepMIL(Model):
         # Re Initialize val_results for next validation
         self.results_val['scores'] = []
         self.results_val['y_true'] = []
+        self.results_val['proba_preds'] = []
         return val_metrics
 
     def _predict_function(self, scores):
@@ -305,7 +311,7 @@ class DeepMIL(Model):
     def predict(self, x):
         x = x.to(self.args.device)
         proba = self._to_pseudo_proba(self._forward_no_grad(x).cpu())
-        _, pred = torch.max(proba, -1)
+        pred = self._predict_function(proba)
         pred = self.target_correspondance[int(pred.item())]
         return proba.numpy(), pred
 
@@ -317,11 +323,15 @@ class DeepMIL(Model):
         y = y.to(self.args.device, dtype=torch.int64)
         x = x.to(self.args.device)
         scores = self._forward_no_grad(x)
-        loss = self.criterion(scores, y)       
         y = y.to('cpu', dtype=torch.int64)
         scores = scores.to('cpu')
-        self.results_val['scores'] += list(self._to_pseudo_proba(scores.numpy()))
+        pred = self._predict_function(self._to_pseudo_proba(scores))
+        pred = self.target_correspondance[int(pred.item())]
+        proba = self._get_pred_pseudo_proba(scores)
+        loss = self.criterion(scores, y)       
+        self.results_val['proba_preds'] += list(proba)
         self.results_val['y_true'] += list(y.cpu().numpy())
+        self.results_val['preds'] += list(pred)
         return loss.detach().cpu().item()
 
     def forward(self, x):
@@ -360,9 +370,3 @@ class DeepMIL(Model):
                 'target_correspondance': self.train_loader.dataset.target_correspondance}
         return dictio
 
-
-
-####################
-## TO ADD IN ARGS ##
-####################
-# args.device 

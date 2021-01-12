@@ -186,7 +186,10 @@ class EmbededWSI(Dataset):
         self.info = os.path.join(args.wsi, 'info')
         self.train = train
         self.predict = predict
-        self.table_data = pd.read_csv(args.table_data)
+        if type(args.table_data) is str: # Permet de modifier la table data avant de load.
+            self.table_data = pd.read_csv(args.table_data)
+        else:
+            self.table_data = args.table_data
         self.files, self.target_dict, self.sampler_dict = self._make_db()
         self.constant_size = (args.nb_tiles != 0)
         
@@ -511,7 +514,7 @@ class Dataset_handler:
             dataloader_val = DataLoader(dataset=self.dataset_train, batch_size=1, sampler=self.val_sampler, num_workers=self.num_workers)
             dataloaders = (dataloader_train, dataloader_val) 
         else: # Testing on the whole dataset
-            dataloaders = DataLoader(dataset=self.dataset_val, batch_size=1, num_workers=self.num_workers)
+            dataloaders = DataLoader(dataset=self.dataset_val, batch_size=1, num_workers=self.num_workers, shuffle=False)
         return dataloaders
         
     def _get_dataset(self, train):
