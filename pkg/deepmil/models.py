@@ -158,7 +158,8 @@ class DeepMIL(Model):
         super(DeepMIL, self).__init__(args)
         self.results_val = {'proba_preds': [],
                             'y_true': [],
-                            'preds':[]}
+                            'preds':[], 
+                            'scores': []}
         self.mean_train_loss = 0
         self.mean_val_loss = 0
         self.target_correspondance = [] # Useful when writing the results
@@ -244,7 +245,7 @@ class DeepMIL(Model):
             return out
 
     def _get_pred_pseudo_proba(self, scores):
-        proba = np.argmax(self._to_pseudo_proba(scores), axis=-1)
+        proba = self._to_pseudo_proba(scores).numpy().max(axis=-1)
         return proba
 
     def _keep_best_metrics(self, metrics):
@@ -298,10 +299,10 @@ class DeepMIL(Model):
 
     def _compute_metrics(self, scores, y_true):
         report = metrics.classification_report(y_true=y_true, y_pred=self._predict_function(scores), output_dict=True, zero_division=0)
-        metrics_dict = {'accuracy': report['accuracy'], "precision": report['weighted avg']['precision'], 
-            "recall": report['weighted avg']['recall'], "f1-score": report['weighted avg']['f1-score']}
+        metrics_dict = {'accuracy': report['accuracy'], "precision": report['macro avg']['precision'], 
+            "recall": report['macro avg']['recall'], "f1-score": report['macro avg']['f1-score']}
         if self.args.num_class <= 2:
-            metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores[:,0])
+            metrics_dict['roc_auc'] = metrics.roc_auc_score(y_true=y_true, y_score=scores[:,1])
         if self.cost_metric:
             metrics_dict['cost_metric'] = self.cost_metric(X=self._predict_function(scores), Y=y_true)
         metrics_dict['epoch'] = self.counter['epoch']
@@ -329,9 +330,10 @@ class DeepMIL(Model):
         pred = self.target_correspondance[int(pred.item())]
         proba = self._get_pred_pseudo_proba(scores)
         loss = self.criterion(scores, y)       
-        self.results_val['proba_preds'] += list(proba)
+        self.results_val['scores'] += list(self._to_pseudo_proba(scores.numpy()))
+        self.results_val['proba_preds'] += [proba.item()]
         self.results_val['y_true'] += list(y.cpu().numpy())
-        self.results_val['preds'] += list(pred)
+        self.results_val['preds'] += [pred]
         return loss.detach().cpu().item()
 
     def forward(self, x):

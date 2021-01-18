@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from tiler_wsi.tile_retriever.tile_sampler import TileSampler
 from torchvision import transforms
+from collections import Counter
 from sklearn.model_selection import StratifiedShuffleSplit
 from collections import Counter
 import os
@@ -382,7 +383,10 @@ class EmbededWSI_from_table(Dataset):
         self.info = os.path.join(args.wsi, 'info')
         self.train = train
         self.predict = predict
-        self.table_data = pd.read_csv(args.table_data)
+        if type(args.table_data) is str: # Permet de modifier la table data avant de load.
+            self.table_data = pd.read_csv(args.table_data)
+        else:
+            self.table_data = args.table_data
         self.files, self.target_dict, self.sampler_dict, self.stratif_dict = self._make_db()
         self.constant_size = (args.nb_tiles != 0)
         
@@ -400,7 +404,7 @@ class EmbededWSI_from_table(Dataset):
                     files_filtered.append(filepath)
                     target_dict[filepath] = np.float32(table[table['ID'] == name]['target'].values[0])
                     sampler_dict[filepath] = TileSampler(wsi_path=filepath, info_folder=self.info)
-                    stratif_dict[filepath] = table[table['ID'] == name]['stratif'].values[0]
+                    stratif_dict[filepath] = table[table['ID'] == name]['target'].values[0]
         return files_filtered, target_dict, sampler_dict, stratif_dict
 
     def transform_target(self):
@@ -519,7 +523,7 @@ class Dataset_handler:
         
     def _get_dataset(self, train):
         if self.joint_tiles:
-            dataset = EmbededWSI(self.args, train=train, predict=self.predict)
+            dataset = EmbededWSI_from_table(self.args, train=train, predict=self.predict)
         else:
             dataset = FolderWSI(self.args, train=train, transform=get_transform(train=train, color_aug=self.args.color_aug))
         return dataset
@@ -528,9 +532,18 @@ class Dataset_handler:
         labels = [x[1] for x in dataset]
         splitter = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=np.random.randint(100))
         train_indices, val_indices = [x for x in splitter.split(X=labels, y=labels)][0]
+        labels_train = np.array(labels)[np.array(train_indices)]
         val_sampler = SubsetRandomSampler(val_indices)
-        train_sampler = SubsetRandomSampler(train_indices)
+        #train_sampler = SubsetRandomSampler(train_indices)
+        train_sampler = WeightedRandomSamplerFromList(self._get_weights_sampling(labels_train), train_indices, len(train_indices))
         return train_sampler, val_sampler
+
+    def _get_weights_sampling(self, labels):
+        """Computes the weights for sampling the points (here, 
+        supposed to balance the sampling so that p(label=i) = p(label=j) = 1/len(set(labels)))"""
+        cc = Counter(labels)
+        weights = [1/cc[x] for x in labels]
+        return weights
 
 def get_transform(train, color_aug=False):
     if train:
@@ -553,6 +566,24 @@ def get_transform(train, color_aug=False):
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     return transform
+
+class WeightedRandomSamplerFromList(torch.utils.data.Sampler):
+    def __init__(self, weights, indices, num_samples, replacement=True, generator=None):
+        assert len(weights) == len(indices)
+        self.weights = torch.as_tensor(weights, dtype=torch.double)
+        self.num_samples = num_samples
+        self.replacement = replacement
+        self.generator = generator
+        self.indices = np.array(indices)
+
+    def __iter__(self):
+        rand_tensor = torch.multinomial(self.weights, self.num_samples, self.replacement, generator=self.generator)
+        return iter(list(self.indices[rand_tensor]))
+
+    def __len__(self):
+        return self.num_samples
+
+
 
 if __name__ == '__main__':
     ## To test it

@@ -32,7 +32,7 @@ def test(model, dataloader, table):
         _ = model.evaluate(input_batch, target_batch)
     proba_preds = model.results_val['proba_preds']
     preds = model.results_val['preds']
-    ids = [os.path.splitext(os.path.basename(x))[0] for x in dataloader.dataset.files]
+    ids = [os.path.splitext(os.path.basename(x))[0].split('_embedded')[0] for x in dataloader.dataset.files]
     result_table = fill_table(table, proba_preds, preds, ids)
     results = model.flush_val_metrics()
     results = convert_flatten(results)
@@ -57,7 +57,7 @@ def fill_table(table, proba_preds, preds, ids):
         pi_scores.append(proba_preds[index])
         pi_preds.append(preds[index])
     table['proba_preds'] = pi_scores
-    table['preds'] = pi_preds
+    table['prediction'] = pi_preds
     return table
 
 def main(model_path=None,  w=False, rm_duplicates=True):
